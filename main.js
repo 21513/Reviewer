@@ -155,14 +155,14 @@
                 if (reviews && reviews.length > 0) {
                     console.log('✅ [Reviewer] Successfully loaded', reviews.length, 'reviews');
                     
-                    let reviewsHtml = '<div style="padding: 20px;"><h3 style="margin: 0 0 15px 0; color: #fff;">IMDb Reviews</h3>';
+                    let reviewsHtml = '<div class="reviewsSource"><h3>IMDb Reviews</h3></div><div class="reviewsContainer">';
                     
                     reviews.forEach((review, index) => {
                         const ratingText = review.rating ? ` <span style="color: #ffc107;">${review.rating}/10</span>` : '';
                         const reviewId = `${itemId}-${index}`;
                         
                         reviewsHtml += `
-                            <div class="reviewContainer" style="margin-bottom: ${index < reviews.length - 1 ? '20px' : '0'}; padding-bottom: ${index < reviews.length - 1 ? '20px' : '0'}; border-bottom: ${index < reviews.length - 1 ? '1px solid #333' : 'none'};">
+                            <div class="reviewContainer" style="margin-bottom: 20px; padding-bottom: 20px; border-bottom: 1px solid #333;">
                                 <div style="margin-bottom: 10px; color: #aaa; font-size: 14px;">
                                     by <strong>${review.author}</strong>${ratingText}
                                 </div>
