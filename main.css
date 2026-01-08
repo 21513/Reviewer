@@ -1,29 +1,51 @@
 /* Reviewer Plugin - Movie Page Injection Styles */
 
 #reviewer-black-div {
+    display: flex;
     width: 100%;
-    margin: 20px 0;
     position: relative;
     z-index: 1000;
-    font-family: 'Inter', sans-serif;
+    gap: var(--itemColumnGap);
+}
+
+.reviewer-content {
+    padding: 0;
+}
+
+.reviewContainer {
+    box-shadow: var(--shadow);
+    overflow: auto;
     border-radius: var(--largeRadius, 1em);
-    overflow: hidden;
-    box-shadow: 0.1em 0.1em 0.15em hsla(0, 0%, 0%, 0.3);
-    border: var(--borderWidth, 0.06em) solid var(--borderColor, hsl(214, 13%, 32%));
-    height: 200px;
-    background: linear-gradient(135deg, #000000, #1a1a1a);
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    font-family: 'Inter', sans-serif;
     color: #ffffff;
+    background-color: var(--lighterGradientPointAlpha);
+    width: 25vw;
+    max-height: 800px;
+    border: var(--defaultBorder);
+    padding: 1em;
 }
 
 #reviewer-black-div h2 {
     margin: 0;
+    padding: 20px;
     font-size: 24px;
-    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.7);
     color: var(--dimTextColor, rgb(156, 163, 175));
-    text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.7);
+}
+
+#reviewer-black-div h3 {
+    margin: 0;
+    color: #fff;
+}
+
+#reviewer-black-div strong {
+    color: inherit;
+}
+
+#reviewer-black-div button {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-family: inherit;
 }
 
 .slide-rating {

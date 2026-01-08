@@ -5,6 +5,10 @@
     
     const htmlTemplate = `{{HTML_TEMPLATE}}`;
     
+    // Extract CSS from template to inject separately
+    const cssMatch = htmlTemplate.match(/<style>([\s\S]*?)<\/style>/);
+    const cssStyles = cssMatch ? cssMatch[1] : '';
+    
     async function getMovieData(itemId) {
         try {
             const apiClient = window.ApiClient;
@@ -138,7 +142,7 @@
             }
             console.log('✅ Reviewer Plugin: Injected div into movie page');
             
-            reviewerDiv.innerHTML = '<div style="padding: 20px; text-align: center; color: #aaa;">Loading IMDb reviews...</div>';
+            reviewerDiv.innerHTML = `<style>${cssStyles}</style><div style="padding: 20px; text-align: center; color: #aaa;">Loading IMDb reviews...</div>`;
             
             const movieData = await getMovieData(itemId);
             console.log('🎬 [Reviewer] Movie data:', movieData);
@@ -158,7 +162,7 @@
                         const reviewId = `${itemId}-${index}`;
                         
                         reviewsHtml += `
-                            <div style="margin-bottom: ${index < reviews.length - 1 ? '20px' : '0'}; padding-bottom: ${index < reviews.length - 1 ? '20px' : '0'}; border-bottom: ${index < reviews.length - 1 ? '1px solid #333' : 'none'};">
+                            <div class="reviewContainer" style="margin-bottom: ${index < reviews.length - 1 ? '20px' : '0'}; padding-bottom: ${index < reviews.length - 1 ? '20px' : '0'}; border-bottom: ${index < reviews.length - 1 ? '1px solid #333' : 'none'};">
                                 <div style="margin-bottom: 10px; color: #aaa; font-size: 14px;">
                                     by <strong>${review.author}</strong>${ratingText}
                                 </div>
@@ -173,7 +177,7 @@
                     });
                     
                     reviewsHtml += '</div>';
-                    reviewerDiv.innerHTML = reviewsHtml;
+                    reviewerDiv.innerHTML = `<style>${cssStyles}</style>` + reviewsHtml;
                     
                     // Add toggle functionality for each review
                     reviews.forEach((review, index) => {
@@ -197,11 +201,11 @@
                     });
                 } else {
                     console.log('❌ [Reviewer] No review available');
-                    reviewerDiv.innerHTML = '<div style="padding: 20px; color: #999;">No IMDb reviews available</div>';
+                    reviewerDiv.innerHTML = `<style>${cssStyles}</style><div style="padding: 20px; color: #999;">No IMDb reviews available</div>`;
                 }
             } else {
                 console.log('❌ [Reviewer] No IMDb ID found in movie data');
-                reviewerDiv.innerHTML = '<div style="padding: 20px; color: #999;">No IMDb ID available for this movie</div>';
+                reviewerDiv.innerHTML = `<style>${cssStyles}</style><div style="padding: 20px; color: #999;">No IMDb ID available for this movie</div>`;
             }
         } else {
             console.log('❌ Could not find suitable container');
