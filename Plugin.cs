@@ -199,13 +199,13 @@ public class Plugin : BasePlugin<PluginConfiguration>
                 var reviewsJson = reviewsArrayMatch.Groups[1].Value;
                 System.Diagnostics.Debug.WriteLine($"✅ [Reviewer] Found reviews array");
                 
-                // Extract up to 3 reviews
+                // Extract up to 7 reviews
                 var reviewMatches = Regex.Matches(reviewsJson, @"""reviewText""\s*:\s*""([^""]{50,}[^""]*)""", RegexOptions.Singleline);
                 var authorMatches = Regex.Matches(reviewsJson, @"""author""\s*:\s*\{[^\}]*""username""\s*:\s*\{[^\}]*""text""\s*:\s*""([^""]+)""", RegexOptions.Singleline);
                 var ratingMatches = Regex.Matches(reviewsJson, @"""authorRating""\s*:\s*(\d+)", RegexOptions.Singleline);
                 
                 var reviewsList = new List<string>();
-                var reviewCount = Math.Min(3, reviewMatches.Count);
+                var reviewCount = Math.Min(7, reviewMatches.Count);
                 
                 System.Diagnostics.Debug.WriteLine($"📊 [Reviewer] Found {reviewMatches.Count} reviews, extracting {reviewCount}");
                 

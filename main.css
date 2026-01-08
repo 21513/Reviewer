@@ -149,6 +149,111 @@
     outline-offset: 2px;
 }
 
+/* Modal Overlay Styles */
+.review-modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.85);
+    backdrop-filter: blur(5px);
+    z-index: 10000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    animation: fadeIn 0.2s ease-out;
+}
+
+.review-modal-content {
+    background: var(--lighterGradientPoint, #303030);
+    border: var(--defaultBorder);
+    border-radius: var(--largeRadius, 1em);
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+    max-width: 800px;
+    max-height: 85vh;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    animation: slideUp 0.3s ease-out;
+}
+
+.review-modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1.5em;
+    border-bottom: 1px solid var(--borderColor, #555);
+    color: #fff;
+}
+
+.review-modal-close {
+    background: none;
+    border: none;
+    color: #aaa;
+    font-size: 2em;
+    cursor: pointer;
+    padding: 0;
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    transition: all 0.2s ease;
+}
+
+.review-modal-close:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: #fff;
+}
+
+.review-modal-body {
+    padding: 1.5em;
+    overflow-y: auto;
+    color: #ddd;
+    line-height: 1.6;
+    font-size: 1rem;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
+}
+
+@keyframes slideUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Mobile modal adjustments */
+@media (max-width: 50em) {
+    .review-modal-content {
+        max-width: 95%;
+        max-height: 90vh;
+    }
+    
+    .review-modal-header,
+    .review-modal-body {
+        padding: 1em;
+    }
+    
+    .review-modal-body {
+        font-size: 0.95rem;
+    }
+}
+
 /* Animation for slide entrance */
 @keyframes slideIn {
     from {

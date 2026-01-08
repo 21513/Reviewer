@@ -196,7 +196,7 @@
                     reviewsHtml += '</div>';
                     reviewerDiv.innerHTML = `<style>${cssStyles}</style>` + reviewsHtml;
                     
-                    // Add toggle functionality for each review
+                    // Add modal functionality for each review
                     reviews.forEach((review, index) => {
                         const reviewId = `${itemId}-${index}`;
                         const textDiv = reviewerDiv.querySelector(`#review-text-${reviewId}`);
@@ -206,12 +206,47 @@
                             // Check if content is taller than max-height
                             if (textDiv.scrollHeight > textDiv.clientHeight) {
                                 toggleBtn.style.display = 'inline-block';
-                                let expanded = false;
                                 
                                 toggleBtn.addEventListener('click', () => {
-                                    expanded = !expanded;
-                                    textDiv.style.maxHeight = expanded ? 'none' : '150px';
-                                    toggleBtn.textContent = expanded ? 'Read less' : 'Read more';
+                                    // Create modal overlay
+                                    const modal = document.createElement('div');
+                                    modal.className = 'review-modal-overlay';
+                                    modal.innerHTML = `
+                                        <div class="review-modal-content">
+                                            <div class="review-modal-header">
+                                                <div>
+                                                    <strong style="font-size: 1.1em;">${review.author}</strong>
+                                                    ${review.rating ? `<span style="color: #ffc107; margin-left: 10px;">${review.rating}/10</span>` : ''}
+                                                </div>
+                                                <button class="review-modal-close" title="Close">&times;</button>
+                                            </div>
+                                            <div class="review-modal-body">
+                                                ${review.content}
+                                            </div>
+                                        </div>
+                                    `;
+                                    
+                                    document.body.appendChild(modal);
+                                    
+                                    // Close on background click or close button
+                                    const closeModal = () => {
+                                        modal.remove();
+                                    };
+                                    
+                                    modal.addEventListener('click', (e) => {
+                                        if (e.target === modal) closeModal();
+                                    });
+                                    
+                                    modal.querySelector('.review-modal-close').addEventListener('click', closeModal);
+                                    
+                                    // Close on Escape key
+                                    const escapeHandler = (e) => {
+                                        if (e.key === 'Escape') {
+                                            closeModal();
+                                            document.removeEventListener('keydown', escapeHandler);
+                                        }
+                                    };
+                                    document.addEventListener('keydown', escapeHandler);
                                 });
                             }
                         }
