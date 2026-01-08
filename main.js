@@ -184,10 +184,12 @@
                                     by <strong>${review.author}</strong>${ratingText}
                                 </div>
                                 <div id="review-container-${reviewId}" style="position: relative;">
-                                    <div id="review-text-${reviewId}" style="color: #ddd; line-height: 1.4; max-height: 150px; overflow: hidden; transition: max-height 0.3s ease;">
+                                    <div id="review-text-${reviewId}" class="review-text-truncated">
                                         ${review.content}
                                     </div>
-                                    <button id="review-toggle-${reviewId}" style="display: none; background: none; border: none; color: #00a4dc; cursor: pointer; padding: 5px 0; font-size: 14px; text-decoration: underline; margin-top: 5px;">Read more</button>
+                                    <div class="read-more-container">
+                                        <button id="review-toggle-${reviewId}" class="read-more-btn">Read more</button>
+                                    </div>
                                 </div>
                             </div>
                         `;
