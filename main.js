@@ -108,32 +108,42 @@
             console.log('🗑️ Removed existing div (different item)');
         }
         
-        const detailWrapper = document.querySelector('.detailPageWrapperContainer');
-        const detailPrimary = document.querySelector('.detailPagePrimaryContent');
-        const detailRibbon = document.querySelector('.detailRibbon');
+        // Find the cast section to insert reviews before it
+        const castSection = document.querySelector('#castCollapsible');
         
         let targetContainer = null;
         let insertPosition = null;
         
-        if (detailPrimary) {
-            targetContainer = detailPrimary;
-            insertPosition = detailPrimary.firstChild;
-            console.log('📍 Found detailPagePrimaryContent');
-        } else if (detailRibbon && detailRibbon.parentElement) {
-            targetContainer = detailRibbon.parentElement;
-            insertPosition = detailRibbon.nextSibling;
-            console.log('📍 Found detailRibbon');
-        } else if (detailWrapper) {
-            targetContainer = detailWrapper;
-            insertPosition = detailWrapper.firstChild;
-            reviewerDiv.dataset.itemId = itemId;  // Store item ID on the div
-            console.log('📍 Found detailWrapper');
+        if (castSection && castSection.parentElement) {
+            targetContainer = castSection.parentElement;
+            insertPosition = castSection;
+            console.log('📍 Found castCollapsible - will insert reviews before Cast & Crew');
+        } else {
+            // Fallback to original logic if cast section not found
+            const detailWrapper = document.querySelector('.detailPageWrapperContainer');
+            const detailPrimary = document.querySelector('.detailPagePrimaryContent');
+            const detailRibbon = document.querySelector('.detailRibbon');
+            
+            if (detailPrimary) {
+                targetContainer = detailPrimary;
+                insertPosition = detailPrimary.firstChild;
+                console.log('📍 Found detailPagePrimaryContent (fallback)');
+            } else if (detailRibbon && detailRibbon.parentElement) {
+                targetContainer = detailRibbon.parentElement;
+                insertPosition = detailRibbon.nextSibling;
+                console.log('📍 Found detailRibbon (fallback)');
+            } else if (detailWrapper) {
+                targetContainer = detailWrapper;
+                insertPosition = detailWrapper.firstChild;
+                console.log('📍 Found detailWrapper (fallback)');
+            }
         }
         
         if (targetContainer) {
             const tempDiv = document.createElement('div');
             tempDiv.innerHTML = htmlTemplate;
             const reviewerDiv = tempDiv.firstElementChild;
+            reviewerDiv.dataset.itemId = itemId;  // Store item ID on the div
             
             if (insertPosition) {
                 targetContainer.insertBefore(reviewerDiv, insertPosition);
@@ -155,7 +165,14 @@
                 if (reviews && reviews.length > 0) {
                     console.log('✅ [Reviewer] Successfully loaded', reviews.length, 'reviews');
                     
-                    let reviewsHtml = '<div class="reviewsSource"><h3>IMDb Reviews</h3></div><div class="reviewsContainer">';
+                    let reviewsHtml = `
+                            <div class="reviewsSource">
+                                <h2 class="sectionTitle sectionTitle-cards padded-right">
+                                    IMDb Reviews
+                                </h2>
+                            </div>
+                            <div class="reviewsContainer">
+                        `;
                     
                     reviews.forEach((review, index) => {
                         const ratingText = review.rating ? ` <span style="color: #ffc107;">${review.rating}/10</span>` : '';
