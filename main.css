@@ -61,21 +61,17 @@
 }
 
 .read-more-btn {
-    background-color: var(--textColor);
-    color: black;
-    border-radius: 3em;
-    border-color: var(--borderColor);
-    height: 3em;
-    min-width: 10em;
     flex-direction: row;
-
     font-family: inherit;
     font-size: inherit;
     font-weight: 500;
-
-    border: var(--defaultLighterBorder);
-    padding: .5em .5em !important;
     cursor: pointer;
+    color: var(--textColor);
+    background-color: var(--selectorBackgroundColor);
+    padding: .125em .5em;
+    border-radius: var(--smallerRadius);
+    margin-top: .2em;
+    border: none;
 }
 
 .read-more-btn:hover {

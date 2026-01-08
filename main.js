@@ -188,7 +188,7 @@
                                         ${review.content}
                                     </div>
                                     <div class="read-more-container">
-                                        <button id="review-toggle-${reviewId}" class="read-more-btn">Read more</button>
+                                        <button id="review-toggle-${reviewId}" class="read-more-btn">Read more...</button>
                                     </div>
                                 </div>
                             </div>
