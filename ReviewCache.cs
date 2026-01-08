@@ -54,25 +54,48 @@ public class ReviewCache
         }
     }
 
-    public CachedReview? Get(string imdbId)
+    public string? Get(string imdbId)
     {
-        if (_cache.TryGetValue(imdbId, out var review))
+        if (_cache.TryGetValue(imdbId, out var cacheEntry))
         {
-            // Check if cache is still valid (30 days)
-            if ((DateTime.UtcNow - review.CachedAt).TotalDays < 30)
+            // Cache is persistent - no expiration check
+            // Reconstruct the response string from individual reviews
+            var reviewStrings = new List<string>();
+            foreach (var (author, reviewData) in cacheEntry.Reviews)
             {
-                return review;
+                reviewStrings.Add($"{author}|||{reviewData.Rating}|||{reviewData.Content}");
             }
+            return string.Join("@@@", reviewStrings);
         }
         return null;
     }
 
-    public async Task Set(string imdbId, string author, string content)
+    public async Task Set(string imdbId, string reviewData)
     {
+        // Parse the reviewData string into individual reviews
+        var reviews = new Dictionary<string, ReviewData>();
+        var reviewBlocks = reviewData.Split("@@@");
+        
+        foreach (var block in reviewBlocks)
+        {
+            var parts = block.Split("|||");
+            if (parts.Length >= 3)
+            {
+                var author = parts[0];
+                var rating = parts[1];
+                var content = parts[2];
+                
+                reviews[author] = new ReviewData
+                {
+                    Rating = rating,
+                    Content = content
+                };
+            }
+        }
+        
         _cache[imdbId] = new CachedReview
         {
-            Author = author,
-            Content = content,
+            Reviews = reviews,
             CachedAt = DateTime.UtcNow
         };
         await SaveCache();
@@ -81,7 +104,12 @@ public class ReviewCache
 
 public class CachedReview
 {
-    public string Author { get; set; } = string.Empty;
-    public string Content { get; set; } = string.Empty;
+    public Dictionary<string, ReviewData> Reviews { get; set; } = new Dictionary<string, ReviewData>();
     public DateTime CachedAt { get; set; }
+}
+
+public class ReviewData
+{
+    public string Rating { get; set; } = string.Empty;
+    public string Content { get; set; } = string.Empty;
 }

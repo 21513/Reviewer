@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Reflection;
 using System.Threading.Tasks;
@@ -155,8 +156,8 @@ public class Plugin : BasePlugin<PluginConfiguration>
                 var cached = _reviewCache.Get(imdbId);
                 if (cached != null)
                 {
-                    System.Diagnostics.Debug.WriteLine($"✅ [Reviewer] Found cached review for: {imdbId}");
-                    return $"{cached.Author}|||{cached.Content}";
+                    System.Diagnostics.Debug.WriteLine($"✅ [Reviewer] Found cached reviews for: {imdbId}");
+                    return cached;
                 }
                 System.Diagnostics.Debug.WriteLine($"❌ [Reviewer] No cache found for: {imdbId}");
             }
@@ -190,57 +191,72 @@ public class Plugin : BasePlugin<PluginConfiguration>
             
             // Modern IMDb embeds review data in JSON within the HTML
             // The data is in a JavaScript object, not JSON-LD
-            var reviewMatch = Regex.Match(html, @"""reviewText""\s*:\s*""([^""]{50,}[^""]*)""", RegexOptions.Singleline);
+            // Extract multiple reviews from the reviews array
+            var reviewsArrayMatch = Regex.Match(html, @"""reviews""\s*:\s*\[(.*?)\]", RegexOptions.Singleline);
             
-            if (reviewMatch.Success)
+            if (reviewsArrayMatch.Success)
             {
-                var reviewText = reviewMatch.Groups[1].Value;
-                System.Diagnostics.Debug.WriteLine($"✅ [Reviewer] Found review text, length: {reviewText.Length}");
+                var reviewsJson = reviewsArrayMatch.Groups[1].Value;
+                System.Diagnostics.Debug.WriteLine($"✅ [Reviewer] Found reviews array");
                 
-                // Extract author username - look backwards from reviewText for author info
-                var authorMatch = Regex.Match(html, @"""author""\s*:\s*\{[^\}]*""username""\s*:\s*\{[^\}]*""text""\s*:\s*""([^""]+)""", RegexOptions.Singleline);
-                var author = authorMatch.Success ? authorMatch.Groups[1].Value : "Anonymous";
+                // Extract up to 3 reviews
+                var reviewMatches = Regex.Matches(reviewsJson, @"""reviewText""\s*:\s*""([^""]{50,}[^""]*)""", RegexOptions.Singleline);
+                var authorMatches = Regex.Matches(reviewsJson, @"""author""\s*:\s*\{[^\}]*""username""\s*:\s*\{[^\}]*""text""\s*:\s*""([^""]+)""", RegexOptions.Singleline);
+                var ratingMatches = Regex.Matches(reviewsJson, @"""authorRating""\s*:\s*(\d+)", RegexOptions.Singleline);
                 
-                // Extract rating - look for authorRating near the review
-                var ratingMatch = Regex.Match(html, @"""authorRating""\s*:\s*(\d+)", RegexOptions.Singleline);
-                var rating = ratingMatch.Success ? ratingMatch.Groups[1].Value : "";
+                var reviewsList = new List<string>();
+                var reviewCount = Math.Min(3, reviewMatches.Count);
                 
-                // First decode Unicode escapes in the HTML entity format (\u0026#39; -> &#39;)
-                reviewText = System.Text.RegularExpressions.Regex.Replace(reviewText, @"\\u([0-9a-fA-F]{4})", 
-                    m => ((char)int.Parse(m.Groups[1].Value, System.Globalization.NumberStyles.HexNumber)).ToString());
-                author = System.Text.RegularExpressions.Regex.Replace(author, @"\\u([0-9a-fA-F]{4})", 
-                    m => ((char)int.Parse(m.Groups[1].Value, System.Globalization.NumberStyles.HexNumber)).ToString());
+                System.Diagnostics.Debug.WriteLine($"📊 [Reviewer] Found {reviewMatches.Count} reviews, extracting {reviewCount}");
                 
-                // Decode JSON escaped characters
-                reviewText = reviewText.Replace("\\n", "\n")
-                                       .Replace("\\r", "")
-                                       .Replace("\\t", " ")
-                                       .Replace("\\\"", "\"")
-                                       .Replace("\\'", "'")
-                                       .Replace("\\\\", "\\");
-                
-                author = author.Replace("\\n", " ")
-                               .Replace("\\r", "")
-                               .Replace("\\\"", "\"")
-                               .Replace("\\'", "'")
-                               .Replace("\\\\", "\\");
-                
-                // Decode HTML entities (after all other escapes are handled)
-                reviewText = System.Net.WebUtility.HtmlDecode(reviewText).Trim();
-                author = System.Net.WebUtility.HtmlDecode(author).Trim();
-                
-                System.Diagnostics.Debug.WriteLine($"👤 [Reviewer] Author: {author}");
-                System.Diagnostics.Debug.WriteLine($"⭐ [Reviewer] Rating: {rating}");
-                System.Diagnostics.Debug.WriteLine($"📝 [Reviewer] Review preview: {(reviewText.Length > 100 ? reviewText.Substring(0, 100) + "..." : reviewText)}");
-                
-                // Cache the result
-                if (_reviewCache != null)
+                for (int i = 0; i < reviewCount; i++)
                 {
-                    await _reviewCache.Set(imdbId, author, reviewText);
-                    System.Diagnostics.Debug.WriteLine($"💾 [Reviewer] Cached review for: {imdbId}");
+                    var reviewText = reviewMatches[i].Groups[1].Value;
+                    var author = i < authorMatches.Count ? authorMatches[i].Groups[1].Value : "Anonymous";
+                    var rating = i < ratingMatches.Count ? ratingMatches[i].Groups[1].Value : "";
+                    
+                    // First decode Unicode escapes in the HTML entity format (\u0026#39; -> &#39;)
+                    reviewText = System.Text.RegularExpressions.Regex.Replace(reviewText, @"\\u([0-9a-fA-F]{4})", 
+                        m => ((char)int.Parse(m.Groups[1].Value, System.Globalization.NumberStyles.HexNumber)).ToString());
+                    author = System.Text.RegularExpressions.Regex.Replace(author, @"\\u([0-9a-fA-F]{4})", 
+                        m => ((char)int.Parse(m.Groups[1].Value, System.Globalization.NumberStyles.HexNumber)).ToString());
+                    
+                    // Decode JSON escaped characters
+                    reviewText = reviewText.Replace("\\n", "\n")
+                                           .Replace("\\r", "")
+                                           .Replace("\\t", " ")
+                                           .Replace("\\\"", "\"")
+                                           .Replace("\\'", "'")
+                                           .Replace("\\\\", "\\");
+                    
+                    author = author.Replace("\\n", " ")
+                                   .Replace("\\r", "")
+                                   .Replace("\\\"", "\"")
+                                   .Replace("\\'", "'")
+                                   .Replace("\\\\", "\\");
+                    
+                    // Decode HTML entities (after all other escapes are handled)
+                    reviewText = System.Net.WebUtility.HtmlDecode(reviewText).Trim();
+                    author = System.Net.WebUtility.HtmlDecode(author).Trim();
+                    
+                    System.Diagnostics.Debug.WriteLine($"👤 [Reviewer] Review {i+1} - Author: {author}, Rating: {rating}");
+                    
+                    reviewsList.Add($"{author}|||{rating}|||{reviewText}");
                 }
                 
-                return $"{author}|||{rating}|||{reviewText}";
+                if (reviewsList.Count > 0)
+                {
+                    var result = string.Join("@@@", reviewsList);
+                    
+                    // Cache the complete result with all reviews
+                    if (_reviewCache != null)
+                    {
+                        await _reviewCache.Set(imdbId, result);
+                        System.Diagnostics.Debug.WriteLine($"💾 [Reviewer] Cached {reviewsList.Count} reviews for: {imdbId}");
+                    }
+                    
+                    return result;
+                }
             }
             
             System.Diagnostics.Debug.WriteLine($"⚠️ [Reviewer] No review found in JSON, trying HTML patterns...");
@@ -295,14 +311,16 @@ public class Plugin : BasePlugin<PluginConfiguration>
                     var author = authorMatch.Success ? System.Net.WebUtility.HtmlDecode(authorMatch.Groups[1].Value) : "Anonymous";
                     System.Diagnostics.Debug.WriteLine($"👤 [Reviewer] Author: {author}");
                     
+                    var result = $"{author}||||||{reviewText}";
+                    
                     // Cache the result
                     if (_reviewCache != null)
                     {
-                        await _reviewCache.Set(imdbId, author, reviewText);
+                        await _reviewCache.Set(imdbId, result);
                         System.Diagnostics.Debug.WriteLine($"💾 [Reviewer] Cached review for: {imdbId}");
                     }
                     
-                    return $"{author}|||{reviewText}";
+                    return result;
                 }
             }
             

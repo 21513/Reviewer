@@ -47,17 +47,21 @@
             console.log('📊 [Reviewer] Raw response (first 200 chars):', reviewData.substring(0, 200));
             
             if (reviewData) {
-                const parts = reviewData.split('|||');
-                console.log('📊 [Reviewer] Split into', parts.length, 'parts');
-                console.log('👤 [Reviewer] Author (length=' + parts[0].length + '):', parts[0]);
-                console.log('⭐ [Reviewer] Rating (length=' + (parts[1] ? parts[1].length : 0) + '):', parts[1]);
-                console.log('📝 [Reviewer] Content (length=' + (parts[2] ? parts[2].length : 0) + ', first 100):', parts[2] ? parts[2].substring(0, 100) : 'N/A');
+                // Split by @@@ to get multiple reviews
+                const reviewBlocks = reviewData.split('@@@');
+                console.log('📊 [Reviewer] Found', reviewBlocks.length, 'review(s)');
                 
-                return {
-                    author: parts[0] || 'Anonymous',
-                    rating: parts[1] || '',
-                    content: parts[2] || parts[1] || reviewData
-                };
+                const reviews = reviewBlocks.map((block, index) => {
+                    const parts = block.split('|||');
+                    console.log(`📊 [Reviewer] Review ${index + 1}: ${parts[0]} - ${parts[1]}/10`);
+                    return {
+                        author: parts[0] || 'Anonymous',
+                        rating: parts[1] || '',
+                        content: parts[2] || parts[1] || block
+                    };
+                });
+                
+                return reviews;
             }
             
             console.log('❌ [Reviewer] No review data returned');
@@ -134,7 +138,7 @@
             }
             console.log('✅ Reviewer Plugin: Injected div into movie page');
             
-            reviewerDiv.innerHTML = '<div style="padding: 20px; text-align: center; color: #aaa;">Loading IMDb review...</div>';
+            reviewerDiv.innerHTML = '<div style="padding: 20px; text-align: center; color: #aaa;">Loading IMDb reviews...</div>';
             
             const movieData = await getMovieData(itemId);
             console.log('🎬 [Reviewer] Movie data:', movieData);
@@ -143,46 +147,57 @@
                 const imdbId = movieData.ProviderIds.Imdb;
                 console.log('🎬 [Reviewer] IMDb ID:', imdbId);
                 
-                const review = await fetchImdbReview(imdbId);
-                if (review) {
-                    console.log('✅ [Reviewer] Successfully loaded review');
-                    const ratingText = review.rating ? ` <span style="color: #ffc107;">${review.rating}/10</span>` : '';
+                const reviews = await fetchImdbReview(imdbId);
+                if (reviews && reviews.length > 0) {
+                    console.log('✅ [Reviewer] Successfully loaded', reviews.length, 'reviews');
                     
-                    reviewerDiv.innerHTML = `
-                        <div style="padding: 20px;">
-                            <h3 style="margin: 0 0 10px 0; color: #fff;">IMDb Review</h3>
-                            <div style="margin-bottom: 10px; color: #aaa; font-size: 14px;">
-                                by <strong>${review.author}</strong>${ratingText}
-                            </div>
-                            <div id="review-container-${itemId}" style="position: relative;">
-                                <div id="review-text-${itemId}" style="color: #ddd; line-height: 1.4; max-height: 150px; overflow: hidden; transition: max-height 0.3s ease;">
-                                    ${review.content}
+                    let reviewsHtml = '<div style="padding: 20px;"><h3 style="margin: 0 0 15px 0; color: #fff;">IMDb Reviews</h3>';
+                    
+                    reviews.forEach((review, index) => {
+                        const ratingText = review.rating ? ` <span style="color: #ffc107;">${review.rating}/10</span>` : '';
+                        const reviewId = `${itemId}-${index}`;
+                        
+                        reviewsHtml += `
+                            <div style="margin-bottom: ${index < reviews.length - 1 ? '20px' : '0'}; padding-bottom: ${index < reviews.length - 1 ? '20px' : '0'}; border-bottom: ${index < reviews.length - 1 ? '1px solid #333' : 'none'};">
+                                <div style="margin-bottom: 10px; color: #aaa; font-size: 14px;">
+                                    by <strong>${review.author}</strong>${ratingText}
                                 </div>
-                                <button id="review-toggle-${itemId}" style="display: none; background: none; border: none; color: #00a4dc; cursor: pointer; padding: 5px 0; font-size: 14px; text-decoration: underline; margin-top: 5px;">Read more</button>
+                                <div id="review-container-${reviewId}" style="position: relative;">
+                                    <div id="review-text-${reviewId}" style="color: #ddd; line-height: 1.4; max-height: 150px; overflow: hidden; transition: max-height 0.3s ease;">
+                                        ${review.content}
+                                    </div>
+                                    <button id="review-toggle-${reviewId}" style="display: none; background: none; border: none; color: #00a4dc; cursor: pointer; padding: 5px 0; font-size: 14px; text-decoration: underline; margin-top: 5px;">Read more</button>
+                                </div>
                             </div>
-                        </div>
-                    `;
+                        `;
+                    });
                     
-                    // Check if content overflows and add toggle functionality
-                    const textDiv = reviewerDiv.querySelector(`#review-text-${itemId}`);
-                    const toggleBtn = reviewerDiv.querySelector(`#review-toggle-${itemId}`);
+                    reviewsHtml += '</div>';
+                    reviewerDiv.innerHTML = reviewsHtml;
                     
-                    if (textDiv && toggleBtn) {
-                        // Check if content is taller than max-height
-                        if (textDiv.scrollHeight > textDiv.clientHeight) {
-                            toggleBtn.style.display = 'inline-block';
-                            let expanded = false;
-                            
-                            toggleBtn.addEventListener('click', () => {
-                                expanded = !expanded;
-                                textDiv.style.maxHeight = expanded ? 'none' : '150px';
-                                toggleBtn.textContent = expanded ? 'Read less' : 'Read more';
-                            });
+                    // Add toggle functionality for each review
+                    reviews.forEach((review, index) => {
+                        const reviewId = `${itemId}-${index}`;
+                        const textDiv = reviewerDiv.querySelector(`#review-text-${reviewId}`);
+                        const toggleBtn = reviewerDiv.querySelector(`#review-toggle-${reviewId}`);
+                        
+                        if (textDiv && toggleBtn) {
+                            // Check if content is taller than max-height
+                            if (textDiv.scrollHeight > textDiv.clientHeight) {
+                                toggleBtn.style.display = 'inline-block';
+                                let expanded = false;
+                                
+                                toggleBtn.addEventListener('click', () => {
+                                    expanded = !expanded;
+                                    textDiv.style.maxHeight = expanded ? 'none' : '150px';
+                                    toggleBtn.textContent = expanded ? 'Read less' : 'Read more';
+                                });
+                            }
                         }
-                    }
+                    });
                 } else {
                     console.log('❌ [Reviewer] No review available');
-                    reviewerDiv.innerHTML = '<div style="padding: 20px; color: #999;">No IMDb review available</div>';
+                    reviewerDiv.innerHTML = '<div style="padding: 20px; color: #999;">No IMDb reviews available</div>';
                 }
             } else {
                 console.log('❌ [Reviewer] No IMDb ID found in movie data');

@@ -5,39 +5,15 @@
     z-index: 1000;
     font-family: 'Inter', sans-serif;
     border-radius: var(--largeRadius, 1em);
-    overflow: hidden;
+    overflow: auto;
     box-shadow: 0.1em 0.1em 0.15em hsla(0, 0%, 0%, 0.3);
     border: var(--borderWidth, 0.06em) solid var(--borderColor, hsl(214, 13%, 32%));
-    height: 200px;
+    max-height: 800px;
     background: linear-gradient(135deg, #000000, #1a1a1a);
-    display: flex;
-    align-items: center;
-    justify-content: center;
     color: #ffffff;
 ">
     <style>{{CSS_STYLES}}</style>
-    <h2 style="margin: 0; font-size: 24px;">Movie Information Section</h2>
-    
-    <!-- Title Overlay -->
-    <div style="
-        position: absolute;
-        top: 20px;
-        left: 20px;
-        z-index: 10;
-        background: rgba(0, 0, 0, 0.7);
-        padding: 8px 16px;
-        border-radius: var(--smallRadius, 0.5em);
-        backdrop-filter: blur(5px);
-    ">
-        <h2 style="
-            margin: 0;
-            font-size: 1.2rem;
-            font-weight: 600;
-            color: var(--textColor, rgb(209, 213, 219));
-            font-family: 'Inter', sans-serif;
-            display: flex;
-            align-items: center;
-            gap: 0.5em;
-        ">🎬 Featured</h2>
+    <div class="reviewer-content">
+        <h2 style="margin: 0; padding: 20px; font-size: 24px;">Loading...</h2>
     </div>
 </div>
