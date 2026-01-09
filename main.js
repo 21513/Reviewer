@@ -73,6 +73,178 @@
         }
     }
     
+    async function fetchStreamCount(albumId, trackId, spotifyId, trackName, artistName) {
+        try {
+            console.log('[Reviewer] Fetching stream count - Album ID:', albumId, 'Track ID:', trackId, 'Spotify ID:', spotifyId, 'Track:', trackName, 'Artist:', artistName);
+            
+            const apiClient = window.ApiClient;
+            
+            // Build URL with available parameters
+            let url = 'Reviewer/GetStreamCount?';
+            const params = [];
+            
+            if (albumId) {
+                params.push(`albumId=${encodeURIComponent(albumId)}`);
+            }
+            if (trackId) {
+                params.push(`trackId=${encodeURIComponent(trackId)}`);
+            }
+            if (spotifyId) {
+                params.push(`spotifyId=${encodeURIComponent(spotifyId)}`);
+            }
+            if (trackName) {
+                params.push(`trackName=${encodeURIComponent(trackName)}`);
+            }
+            if (artistName) {
+                params.push(`artistName=${encodeURIComponent(artistName)}`);
+            }
+            
+            url += params.join('&');
+
+            const streamData = await apiClient.ajax({
+                type: 'GET',
+                url: apiClient.getUrl(url),
+                dataType: 'text'
+            });
+            
+            console.log('[Reviewer] Stream data received:', streamData);
+            
+            if (streamData) {
+                const parts = streamData.split('|||');
+                return {
+                    streamCount: parts[0] || '0',
+                    trackName: parts[1] || '',
+                    artistName: parts[2] || '',
+                    releaseDate: parts[3] || ''
+                };
+            }
+            
+            return null;
+        } catch (error) {
+            console.error('[Reviewer] Error fetching stream count:', error);
+            return null;
+        }
+    }
+    
+    // Rate limiting for API requests
+    let requestQueue = [];
+    let isProcessingQueue = false;
+    
+    async function processRequestQueue() {
+        if (isProcessingQueue || requestQueue.length === 0) {
+            return;
+        }
+        
+        isProcessingQueue = true;
+        
+        while (requestQueue.length > 0) {
+            const task = requestQueue.shift();
+            try {
+                await task();
+            } catch (error) {
+                console.error('[Reviewer] Error processing queued request:', error);
+            }
+            // Add 200ms delay between requests to avoid overwhelming the server
+            await new Promise(resolve => setTimeout(resolve, 200));
+        }
+        
+        isProcessingQueue = false;
+    }
+    
+    async function injectStreamCountIntoTrackList() {
+        // Find all list items that are audio tracks
+        const listItems = document.querySelectorAll('.listItem');
+        
+        if (!listItems || listItems.length === 0) {
+            return;
+        }
+        
+        const apiClient = window.ApiClient;
+        if (!apiClient) {
+            return;
+        }
+        
+        // Process each track and add to queue
+        for (const listItem of listItems) {
+            // Skip if already processed
+            if (listItem.dataset.reviewerProcessed === 'true') {
+                continue;
+            }
+            
+            // Find buttons with data-id attribute (these contain the item ID)
+            const button = listItem.querySelector('[data-id][data-itemtype="Audio"]');
+            if (!button) {
+                continue;
+            }
+            
+            const itemId = button.getAttribute('data-id');
+            if (!itemId) {
+                continue;
+            }
+            
+            // Mark as processed immediately to prevent duplicate processing
+            listItem.dataset.reviewerProcessed = 'true';
+            
+            // Add to request queue
+            requestQueue.push(async () => {
+                try {
+                    // Get track data
+                    const trackData = await apiClient.getItem(apiClient.getCurrentUserId(), itemId);
+                    
+                    if (!trackData) {
+                        return;
+                    }
+                    
+                    // Get album ID and Spotify ID if available, otherwise use track/artist name
+                    const albumId = trackData.AlbumId || null;
+                    const spotifyId = trackData.ProviderIds?.Spotify || null;
+                    const trackName = trackData.Name || null;
+                    const artistName = trackData.AlbumArtist || trackData.Artists?.[0] || null;
+                    
+                    if (!spotifyId && (!trackName || !artistName)) {
+                        return;
+                    }
+                    
+                    // Fetch stream count
+                    const streamData = await fetchStreamCount(albumId, itemId, spotifyId, trackName, artistName);
+                    
+                    if (!streamData) {
+                        return;
+                    }
+                    
+                    // Find the duration element (inside secondary listItemMediaInfo)
+                    const mediaInfo = listItem.querySelector('.secondary.listItemMediaInfo');
+                    
+                    if (!mediaInfo) {
+                        return;
+                    }
+                    
+                    // Check if we already added stream count
+                    if (mediaInfo.querySelector('.reviewer-stream-count')) {
+                        return;
+                    }
+                    
+                    // Create stream count element
+                    const streamCountDiv = document.createElement('div');
+                    streamCountDiv.className = 'mediaInfoItem reviewer-stream-count';
+                    streamCountDiv.style.color = '#1DB954';
+                    streamCountDiv.style.fontWeight = '500';
+                    streamCountDiv.title = `${streamData.streamCount} Spotify streams`;
+                    streamCountDiv.innerHTML = `<span style="font-size: 0.85em;">🎵</span> ${escapeHtml(streamData.streamCount)}`;
+                    
+                    // Insert before the duration (first child)
+                    mediaInfo.insertBefore(streamCountDiv, mediaInfo.firstChild);
+                    
+                } catch (error) {
+                    console.error('[Reviewer] Error processing track:', error);
+                }
+            });
+        }
+        
+        // Start processing the queue
+        processRequestQueue();
+    }
+    
     function initializeReviewScrollButtons(container) {
         const scrollContainer = container.querySelector('.reviewsContainer');
         const leftBtn = container.querySelector('.reviewerScrollLeft');
@@ -325,22 +497,187 @@
         }
     }
     
+    async function injectOnMusicPage() {
+        const isDetailPage = window.location.hash.includes('/details?id=');
+        
+        if (!isDetailPage) {
+            return;
+        }
+        
+        const urlParams = new URLSearchParams(window.location.hash.split('?')[1]);
+        const itemId = urlParams.get('id');
+        
+        if (!itemId) {
+            return;
+        }
+        
+        const existingDiv = document.getElementById('reviewer-stream-div');
+        if (existingDiv && existingDiv.dataset.itemId === itemId) {
+            return;
+        }
+        
+        if (existingDiv) {
+            existingDiv.remove();
+        }
+        
+        const musicData = await getMovieData(itemId);
+        console.log('[Reviewer] Music data:', musicData);
+        
+        // Only show stream counts for Audio items (individual tracks), not albums or artists
+        if (!musicData || musicData.Type !== 'Audio') {
+            console.log('[Reviewer] Item type not Audio track:', musicData?.Type);
+            return;
+        }
+        
+        // Get album ID and Spotify ID if available, otherwise use track/artist name
+        const albumId = musicData.AlbumId || null;
+        const spotifyId = musicData.ProviderIds?.Spotify || null;
+        const trackName = musicData.Name || null;
+        const artistName = musicData.AlbumArtist || musicData.Artists?.[0] || null;
+        
+        if (!spotifyId && (!trackName || !artistName)) {
+            console.log('[Reviewer] No Spotify ID and insufficient track info');
+            return;
+        }
+        
+        console.log('[Reviewer] Track info - Album ID:', albumId, 'Track ID:', itemId, 'Spotify ID:', spotifyId, 'Name:', trackName, 'Artist:', artistName);
+        
+        // Find the target container
+        const detailPrimary = document.querySelector('.detailPagePrimaryContent');
+        const detailWrapper = document.querySelector('.detailPageWrapperContainer');
+        
+        let targetContainer = null;
+        
+        if (detailPrimary) {
+            targetContainer = detailPrimary;
+        } else if (detailWrapper) {
+            targetContainer = detailWrapper;
+        }
+        
+        if (targetContainer) {
+            const streamDiv = document.createElement('div');
+            streamDiv.id = 'reviewer-stream-div';
+            streamDiv.dataset.itemId = itemId;
+            streamDiv.style.padding = '20px';
+            streamDiv.style.marginBottom = '20px';
+            
+            targetContainer.insertBefore(streamDiv, targetContainer.firstChild);
+            
+            streamDiv.innerHTML = `<style>${cssStyles}</style><div style="padding: 20px; text-align: center; color: #aaa;">Loading Spotify stream count...</div>`;
+            
+            const streamData = await fetchStreamCount(albumId, itemId, spotifyId, trackName, artistName);
+            if (streamData) {
+                console.log('[Reviewer] Successfully loaded stream data:', streamData);
+                
+                let streamHtml = `
+                    <div style="background: rgba(0,0,0,0.3); border-radius: 8px; padding: 20px; margin-bottom: 20px;">
+                        <h2 class="sectionTitle sectionTitle-cards" style="margin-bottom: 15px;">
+                            🎵 Spotify Streams
+                        </h2>
+                        <div style="display: flex; flex-direction: column; gap: 12px;">
+                            <div style="display: flex; align-items: center; gap: 10px;">
+                                <span style="font-size: 48px; font-weight: bold; color: #1DB954;">${escapeHtml(streamData.streamCount)}</span>
+                                <span style="color: #aaa; font-size: 18px;">total streams</span>
+                            </div>`;
+                
+                if (streamData.releaseDate) {
+                    streamHtml += `
+                            <div style="color: #999; font-size: 14px;">
+                                Released: ${escapeHtml(streamData.releaseDate)}
+                            </div>`;
+                }
+                
+                streamHtml += `
+                            <div style="margin-top: 10px;">
+                                <a href="https://www.mystreamcount.com/track/${spotifyId}" target="_blank" rel="noopener noreferrer" 
+                                   style="color: #00a4dc; text-decoration: none; font-size: 13px;">
+                                    View detailed analytics on MyStreamCount →
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                
+                streamDiv.innerHTML = `<style>${cssStyles}</style>` + streamHtml;
+            } else {
+                streamDiv.innerHTML = `<style>${cssStyles}</style><div style="padding: 20px; color: #999;">No stream data available on MyStreamCount</div>`;
+            }
+        }
+    }
+    
     document.addEventListener('viewshow', function(e) {
         setTimeout(injectOnMoviePage, 200);
+        setTimeout(injectOnMusicPage, 200);
+        setTimeout(injectStreamCountIntoTrackList, 500);
     });
     
     window.addEventListener('hashchange', function() {
         setTimeout(injectOnMoviePage, 200);
+        setTimeout(injectOnMusicPage, 200);
+        setTimeout(injectStreamCountIntoTrackList, 500);
     });
     
     if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', injectOnMoviePage);
+        document.addEventListener('DOMContentLoaded', () => {
+            injectOnMoviePage();
+            injectOnMusicPage();
+            setTimeout(injectStreamCountIntoTrackList, 500);
+        });
     } else {
         setTimeout(injectOnMoviePage, 500);
+        setTimeout(injectOnMusicPage, 500);
+        setTimeout(injectStreamCountIntoTrackList, 800);
     }
     
     window.addEventListener('load', function() {
         setTimeout(injectOnMoviePage, 500);
+        setTimeout(injectOnMusicPage, 500);
+        setTimeout(injectStreamCountIntoTrackList, 800);
     });
+    
+    // Use MutationObserver to detect when track lists are dynamically loaded
+    function setupMutationObserver() {
+        if (!document.body) {
+            console.log('[Reviewer] document.body not available yet, retrying...');
+            setTimeout(setupMutationObserver, 100);
+            return;
+        }
+        
+        const observer = new MutationObserver((mutations) => {
+            let shouldCheck = false;
+            for (const mutation of mutations) {
+                if (mutation.addedNodes.length > 0) {
+                    for (const node of mutation.addedNodes) {
+                        if (node.nodeType === 1 && (node.classList?.contains('listItem') || node.querySelector?.('.listItem'))) {
+                            shouldCheck = true;
+                            break;
+                        }
+                    }
+                }
+                if (shouldCheck) break;
+            }
+            if (shouldCheck) {
+                setTimeout(injectStreamCountIntoTrackList, 300);
+            }
+        });
+        
+        // Start observing the document body for changes
+        try {
+            observer.observe(document.body, {
+                childList: true,
+                subtree: true
+            });
+            console.log('[Reviewer] MutationObserver started');
+        } catch (error) {
+            console.error('[Reviewer] Failed to setup MutationObserver:', error);
+        }
+    }
+    
+    // Setup observer when DOM is ready
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', setupMutationObserver);
+    } else {
+        setupMutationObserver();
+    }
     
 })();

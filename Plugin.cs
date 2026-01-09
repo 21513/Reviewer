@@ -20,6 +20,7 @@ public class Plugin : BasePlugin<PluginConfiguration>
 {
     private readonly ILogger<Plugin> _logger;
     private static ReviewCache? _reviewCache;
+    private static StreamCountCache? _streamCountCache;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="Plugin"/> class.
@@ -32,8 +33,9 @@ public class Plugin : BasePlugin<PluginConfiguration>
     {
         _logger = logger;
         
-        // Initialize cache
+        // Initialize caches
         _reviewCache = new ReviewCache(DataFolderPath);
+        _streamCountCache = new StreamCountCache(DataFolderPath);
         
         _logger.LogInformation("🎬 Reviewer Plugin: Starting initialization...");
         
@@ -289,11 +291,168 @@ public class Plugin : BasePlugin<PluginConfiguration>
         }
     }
 
+    public static async Task<string?> ScrapeStreamCount(string? albumId, string? trackId, string? spotifyId, string? trackName = null, string? artistName = null)
+    {
+        try
+        {
+            using var handler = new HttpClientHandler { UseCookies = true, CookieContainer = new System.Net.CookieContainer() };
+            using var httpClient = new HttpClient(handler);
+            httpClient.Timeout = TimeSpan.FromSeconds(10);
+            httpClient.DefaultRequestHeaders.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36");
+            
+            string? html = null;
+            
+            // Use albumId and trackId for cache - fallback to trackId only if no albumId
+            string effectiveAlbumId = albumId ?? "unknown";
+            string effectiveTrackId = trackId ?? spotifyId ?? $"{trackName}_{artistName}";
+            
+            // Check cache first
+            if (_streamCountCache != null && !string.IsNullOrEmpty(effectiveTrackId))
+            {
+                var cached = _streamCountCache.Get(effectiveAlbumId, effectiveTrackId);
+                if (cached != null)
+                {
+                    return cached;
+                }
+            }
+            
+            // If we have a Spotify ID, fetch directly
+            if (!string.IsNullOrEmpty(spotifyId))
+            {
+                var url = $"https://www.mystreamcount.com/track/{spotifyId}";
+                var response = await httpClient.GetAsync(url);
+                
+                if (response.IsSuccessStatusCode)
+                {
+                    html = await response.Content.ReadAsStringAsync();
+                }
+            }
+            // Otherwise, search using track name and artist
+            else if (!string.IsNullOrEmpty(trackName) && !string.IsNullOrEmpty(artistName))
+            {
+                // First, GET the main page to obtain CSRF token and cookies
+                var homeResponse = await httpClient.GetAsync("https://www.mystreamcount.com/");
+                if (!homeResponse.IsSuccessStatusCode)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[Reviewer] Failed to fetch home page: {homeResponse.StatusCode}");
+                    return null;
+                }
+                
+                var homeHtml = await homeResponse.Content.ReadAsStringAsync();
+                var csrfMatch = Regex.Match(homeHtml, @"<meta\s+name=""csrf-token""\s+content=""([^""]+)""");
+                
+                if (!csrfMatch.Success)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[Reviewer] Could not find CSRF token");
+                    return null;
+                }
+                
+                var csrfToken = csrfMatch.Groups[1].Value;
+                
+                // Now POST the search with CSRF token
+                var searchQuery = $"{trackName} {artistName}";
+                var formContent = new FormUrlEncodedContent(new[]
+                {
+                    new KeyValuePair<string, string>("track", searchQuery)
+                });
+                
+                var request = new HttpRequestMessage(HttpMethod.Post, "https://www.mystreamcount.com/track");
+                request.Content = formContent;
+                request.Headers.Add("X-CSRF-TOKEN", csrfToken);
+                request.Headers.Add("Referer", "https://www.mystreamcount.com/");
+                
+                var response = await httpClient.SendAsync(request);
+                
+                if (response.IsSuccessStatusCode)
+                {
+                    html = await response.Content.ReadAsStringAsync();
+                    
+                    // Check if we got search results (not redirected to a track page)
+                    if (html.Contains("Found") && html.Contains("results"))
+                    {
+                        // Extract the first track link and fetch that page
+                        var trackLinkMatch = Regex.Match(html, @"<a\s+href=""(https://www\.mystreamcount\.com/track/[a-zA-Z0-9]{22})""", RegexOptions.IgnoreCase);
+                        
+                        if (trackLinkMatch.Success)
+                        {
+                            var trackUrl = trackLinkMatch.Groups[1].Value;
+                            System.Diagnostics.Debug.WriteLine($"[Reviewer] Following first search result: {trackUrl}");
+                            
+                            var trackResponse = await httpClient.GetAsync(trackUrl);
+                            if (trackResponse.IsSuccessStatusCode)
+                            {
+                                html = await trackResponse.Content.ReadAsStringAsync();
+                            }
+                        }
+                        else
+                        {
+                            System.Diagnostics.Debug.WriteLine($"[Reviewer] No results found for '{trackName}' by '{artistName}'");
+                            return null;
+                        }
+                    }
+                    // else: we were redirected directly to a track page, html already contains the track page
+                }
+            }
+            else
+            {
+                System.Diagnostics.Debug.WriteLine($"[Reviewer] Invalid parameters: need either Spotify ID or track name + artist name");
+                return null;
+            }
+            
+            if (string.IsNullOrEmpty(html))
+            {
+                return null;
+            }
+            
+            // Extract stream count from the page
+            // Pattern: <p class="text-3xl lg:text-4xl font-extrabold text-spotify-green stat-number">179,294,281</p>
+            var streamCountMatch = Regex.Match(html, @"<p[^>]*class=""[^""]*stat-number[^""]*""[^>]*>\s*([\d,]+)\s*</p>", RegexOptions.IgnoreCase);
+            
+            if (!streamCountMatch.Success)
+            {
+                // Fallback to old pattern
+                streamCountMatch = Regex.Match(html, @"TOTAL\s+STREAMS[\s\S]*?([\d,]+)", RegexOptions.IgnoreCase);
+            }
+            
+            if (streamCountMatch.Success)
+            {
+                var streamCount = streamCountMatch.Groups[1].Value;
+                
+                // Extract track name and artist
+                var titleMatch = Regex.Match(html, @"<h1[^>]*>([^<]+)</h1>");
+                var artistMatch = Regex.Match(html, @"<a[^>]*href=""/artist/[^""]+""[^>]*>([^<]+)</a>");
+                var releaseDateMatch = Regex.Match(html, @"Released\s+([^<]+)");
+                
+                var parsedTrackName = titleMatch.Success ? System.Net.WebUtility.HtmlDecode(titleMatch.Groups[1].Value.Trim()) : (trackName ?? "Unknown Track");
+                var parsedArtistName = artistMatch.Success ? System.Net.WebUtility.HtmlDecode(artistMatch.Groups[1].Value.Trim()) : (artistName ?? "Unknown Artist");
+                var releaseDate = releaseDateMatch.Success ? releaseDateMatch.Groups[1].Value.Trim() : "";
+                
+                var result = $"{streamCount}|||{parsedTrackName}|||{parsedArtistName}|||{releaseDate}";
+                
+                // Cache the result
+                if (_streamCountCache != null && !string.IsNullOrEmpty(effectiveTrackId))
+                {
+                    await _streamCountCache.Set(effectiveAlbumId, effectiveTrackId, result);
+                }
+                
+                System.Diagnostics.Debug.WriteLine($"[Reviewer] Found stream count: {streamCount} for '{parsedTrackName}' by '{parsedArtistName}'");
+                return result;
+            }
+            
+            System.Diagnostics.Debug.WriteLine($"[Reviewer] Could not extract stream count from page");
+            return null;
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[Reviewer] Exception scraping stream count: {ex.Message}");
+            return null;
+        }
+    }
     /// <inheritdoc />
     public override string Name => "Reviewer";
 
     /// <inheritdoc />
-    public override string Description => "Adds a custom section to movie detail pages";
+    public override string Description => "Adds IMDb reviews for movies/TV and stream counts for music";
 
     /// <inheritdoc />
     public override Guid Id => Guid.Parse("909531ee-1a34-4730-800e-44316f07cbff");
