@@ -13,8 +13,8 @@
                 "changelog": "Fixed Guid mismatch",
                 "targetAbi": "10.11.4.0",
                 "sourceUrl": "https://github.com/21513/Reviewer/releases/download/v0.0.1.2/Reviewer-v0.0.1.2.zip",
-                "checksum": "3d0470347317e114a974b8af42c9876a",
-                "timestamp": "2026-01-09T12:13:25Z"
+                "checksum": "714c157b956c92a2499c768100417eeb",
+                "timestamp": "2026-01-09T12:17:35Z"
             },
             {
                 "version": "0.0.1.1",
