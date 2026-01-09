@@ -108,15 +108,18 @@
             }
         }
         
-        leftBtn.addEventListener('click', () => {
+        const scrollLeft = () => {
             scrollContainer.scrollBy({ left: -scrollAmount, behavior: 'smooth' });
             setTimeout(updateButtonStates, 300);
-        });
+        };
         
-        rightBtn.addEventListener('click', () => {
+        const scrollRight = () => {
             scrollContainer.scrollBy({ left: scrollAmount, behavior: 'smooth' });
             setTimeout(updateButtonStates, 300);
-        });
+        };
+        
+        leftBtn.addEventListener('click', scrollLeft);
+        rightBtn.addEventListener('click', scrollRight);
         
         scrollContainer.addEventListener('scroll', updateButtonStates);
         
@@ -220,11 +223,11 @@
                                     IMDb Reviews
                                 </h2>
                             </div>
-                            <div is="emby-scrollbuttons" class="emby-scrollbuttons padded-right">
-                                <button type="button" is="paper-icon-button-light" data-ripple="false" data-direction="left" title="Previous" class="emby-scrollbuttons-button paper-icon-button-light reviewer-scroll-left">
+                            <div class="reviewer-scroll-buttons">
+                                <button type="button" class="reviewer-scroll-left paper-icon-button-light" title="Previous">
                                     <span class="material-icons chevron_left" aria-hidden="true"></span>
                                 </button>
-                                <button type="button" is="paper-icon-button-light" data-ripple="false" data-direction="right" title="Next" class="emby-scrollbuttons-button paper-icon-button-light reviewer-scroll-right">
+                                <button type="button" class="reviewer-scroll-right paper-icon-button-light" title="Next">
                                     <span class="material-icons chevron_right" aria-hidden="true"></span>
                                 </button>
                             </div>
@@ -255,7 +258,7 @@
                     reviewsHtml += '</div>';
                     reviewerDiv.innerHTML = `<style>${cssStyles}</style>` + reviewsHtml;
                     
-                    // Initialize scroll buttons
+                    // Initialize scroll buttons after DOM is ready
                     setTimeout(() => {
                         initializeReviewScrollButtons(reviewerDiv);
                     }, 100);
