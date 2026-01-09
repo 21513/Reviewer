@@ -15,10 +15,15 @@
 .reviewsContainer{
     display: flex;
     gap: var(--itemColumnGap);
-
-    overflow: scroll;
+    overflow-x: auto;
+    overflow-y: hidden;
     scroll-behavior: smooth;
-    width: fit-content;
+    scrollbar-width: none; /* Firefox */
+    -ms-overflow-style: none; /* IE and Edge */
+}
+
+.reviewsContainer::-webkit-scrollbar {
+    display: none; /* Chrome, Safari, Opera */
 }
 
 .reviewsSource {
@@ -34,6 +39,8 @@
     color: #ffffff;
     background-color: var(--lighterGradientPointAlpha);
     width: 512px;
+    min-width: 512px;
+    flex-shrink: 0;
     line-clamp: 12;
     -webkit-line-clamp: 12;
     border: var(--defaultBorder);
