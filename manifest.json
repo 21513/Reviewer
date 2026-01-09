@@ -9,6 +9,14 @@
         "imageUrl": "",
         "versions": [
             {
+                "version": "0.0.1.2",
+                "changelog": "Fixed Guid mismatch",
+                "targetAbi": "10.11.4.0",
+                "sourceUrl": "https://github.com/21513/Reviewer/releases/download/v0.0.1.2/Reviewer-v0.0.1.2.zip",
+                "checksum": "3d0470347317e114a974b8af42c9876a",
+                "timestamp": "2026-01-09T12:13:25Z"
+            },
+            {
                 "version": "0.0.1.1",
                 "changelog": "Fixed minor styling issue for mobile devices",
                 "targetAbi": "10.11.4.0",

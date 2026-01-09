@@ -346,5 +346,5 @@ public class Plugin : BasePlugin<PluginConfiguration>
     public override string Description => "Adds a custom section to movie detail pages";
 
     /// <inheritdoc />
-    public override Guid Id => Guid.Parse("639b5171-918b-4b24-82e4-d35c10be63a4");
+    public override Guid Id => Guid.Parse("909531ee-1a34-4730-800e-44316f07cbff");
 }
