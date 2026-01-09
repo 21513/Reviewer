@@ -29,10 +29,10 @@ jobs:
     - name: Create plugin package
       run: |
         mkdir -p plugin-package
-        cp bin/Release/net9.0/Jellyfeatured.dll plugin-package/
+        cp bin/Release/net9.0/Reviewer.dll plugin-package/
         cp manifest.json plugin-package/
         cd plugin-package
-        zip -r ../Jellyfeatured-${{ github.event.release.tag_name }}.zip .
+        zip -r ../Reviewer-${{ github.event.release.tag_name }}.zip .
         
     - name: Upload plugin to release
       uses: actions/upload-release-asset@v1
@@ -40,8 +40,8 @@ jobs:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
         upload_url: ${{ github.event.release.upload_url }}
-        asset_path: ./Jellyfeatured-${{ github.event.release.tag_name }}.zip
-        asset_name: Jellyfeatured-${{ github.event.release.tag_name }}.zip
+        asset_path: ./Reviewer-${{ github.event.release.tag_name }}.zip
+        asset_name: Reviewer-${{ github.event.release.tag_name }}.zip
         asset_content_type: application/zip
         
     - name: Upload DLL to release
@@ -50,6 +50,6 @@ jobs:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
         upload_url: ${{ github.event.release.upload_url }}
-        asset_path: ./bin/Release/net9.0/Jellyfeatured.dll
-        asset_name: Jellyfeatured.dll
+        asset_path: ./bin/Release/net9.0/Reviewer.dll
+        asset_name: Reviewer.dll
         asset_content_type: application/octet-stream
