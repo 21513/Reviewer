@@ -128,62 +128,8 @@
     color: inherit;
 }
 
-.slide-rating {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.25em;
-    font-size: 0.8rem;
-    font-weight: 600;
-    background: rgba(0, 0, 0, 0.6);
-    padding: 4px 8px;
-    border-radius: var(--smallerRadius, 0.375em);
-    border: var(--borderWidth, 0.06em) solid rgba(255, 255, 255, 0.2);
-    backdrop-filter: blur(5px);
-}
-
-/* Navigation Dots */
-.carousel-dot {
-    width: 10px;
-    height: 10px;
-    border-radius: 50%;
-    background: rgba(255, 255, 255, 0.4);
-    border: 1px solid rgba(255, 255, 255, 0.6);
-    cursor: pointer;
-    transition: all 0.3s ease;
-}
-
 .starIcon {
     margin-right: 0 !important;
-}
-
-.carousel-dot.active {
-    background: var(--textColor, rgb(209, 213, 219));
-    transform: scale(1.2);
-    box-shadow: 0 0 8px rgba(255, 255, 255, 0.5);
-}
-
-.carousel-dot:hover {
-    background: rgba(255, 255, 255, 0.8);
-    transform: scale(1.1);
-}
-
-/* Loading State */
-.loading-slide {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: linear-gradient(0deg, var(--darkerGradientPoint, #111827) 35%, var(--lighterGradientPoint, #1d2635));
-}
-
-.loading-text {
-    opacity: 0.8;
-    color: var(--dimTextColor, rgb(156, 163, 175));
-    margin: 0;
-    padding: 1em;
-    text-align: center;
-    font-style: italic;
-    font-family: "Inter", sans-serif;
-    font-size: 1.1rem;
 }
 
 /* Mobile Responsive */
@@ -192,34 +138,6 @@
         height: 250px;
         margin: 15px 0;
     }
-    
-    .slide-content {
-        padding: 40px 15px 15px;
-    }
-    
-    .slide-title {
-        font-size: 1.2rem;
-    }
-    
-    .slide-subtitle {
-        font-size: 0.8rem;
-    }
-    
-    .carousel-dot {
-        width: 8px;
-        height: 8px;
-    }
-}
-
-/* Focus states for accessibility */
-.carousel-slide:focus {
-    outline: 2px solid var(--highlightOutlineColor, rgb(37, 99, 235));
-    outline-offset: 2px;
-}
-
-.carousel-dot:focus {
-    outline: 2px solid var(--highlightOutlineColor, rgb(37, 99, 235));
-    outline-offset: 2px;
 }
 
 /* Modal Overlay Styles */
@@ -337,8 +255,4 @@
         opacity: 1;
         transform: translateX(0);
     }
-}
-
-.carousel-slide.entering {
-    animation: slideIn 0.5s ease-out;
 }
