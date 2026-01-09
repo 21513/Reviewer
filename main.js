@@ -212,10 +212,11 @@
                         return;
                     }
                     
-                    // Find the duration element (inside secondary listItemMediaInfo)
+                    // Find the title element and duration element
+                    const listItemBody = listItem.querySelector('.listItemBody');
                     const mediaInfo = listItem.querySelector('.secondary.listItemMediaInfo');
                     
-                    if (!mediaInfo) {
+                    if (!mediaInfo || !listItemBody) {
                         return;
                     }
                     
@@ -224,22 +225,23 @@
                         return;
                     }
                     
+                    // Don't shrink the title section - let it flex naturally
+                    // Instead, add stream count with controlled width
+                    
                     // Set flex layout on parent
                     mediaInfo.style.display = 'flex';
                     mediaInfo.style.alignItems = 'center';
-                    mediaInfo.style.gap = '10px';
+                    mediaInfo.style.gap = '15px';
+                    mediaInfo.style.justifyContent = 'center';
                     
                     // Create stream count element
                     const streamCountDiv = document.createElement('div');
                     streamCountDiv.className = 'mediaInfoItem reviewer-stream-count';
                     streamCountDiv.style.fontWeight = '500';
-                    streamCountDiv.style.flex = '1';
-                    streamCountDiv.style.textAlign = 'center';
+                    streamCountDiv.style.minWidth = '512px';
+                    streamCountDiv.style.textAlign = 'left';
                     streamCountDiv.title = `${streamData.streamCount} Spotify streams`;
                     streamCountDiv.innerHTML = `${escapeHtml(streamData.streamCount)}`;
-                    
-                    // Make parent relative for absolute positioning
-                    mediaInfo.style.position = 'relative';
                     
                     // Insert before the duration (first child)
                     mediaInfo.insertBefore(streamCountDiv, mediaInfo.firstChild);
