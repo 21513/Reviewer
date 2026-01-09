@@ -93,7 +93,7 @@
     display: grid;
 }
 
-.read-more-btn {
+.readMoreBtn {
     flex-direction: row;
     font-family: inherit;
     font-size: inherit;
@@ -108,7 +108,7 @@
     transition: .2s;
 }
 
-.read-more-btn:hover {
+.readMoreBtn:hover {
     background-color: #e2b616 !important;
     color: black !important;
     transition: .2s;
@@ -141,7 +141,7 @@
 }
 
 /* Modal Overlay Styles */
-.review-modal-overlay {
+.reviewModalOverlay {
     position: fixed;
     top: 0;
     left: 0;
@@ -157,7 +157,7 @@
     animation: fadeIn 0.2s ease-out;
 }
 
-.review-modal-content {
+.reviewModalContent {
     background: var(--lighterGradientPoint, #303030);
     border: var(--defaultBorder);
     border-radius: var(--largeRadius, 1em);
@@ -170,16 +170,16 @@
     animation: slideUp 0.3s ease-out;
 }
 
-.review-modal-header {
+.reviewModalHeader {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 1.5em;
+    padding: .5em;
     border-bottom: 1px solid var(--borderColor, #555);
     color: #fff;
 }
 
-.review-modal-close {
+.reviewModalClose {
     background: none;
     border: none;
     color: #aaa;
@@ -195,13 +195,13 @@
     transition: all 0.2s ease;
 }
 
-.review-modal-close:hover {
+.reviewModalClose:hover {
     background: rgba(255, 255, 255, 0.1);
     color: #fff;
 }
 
-.review-modal-body {
-    padding: 1.5em;
+.reviewModalBody {
+    padding: .5em;
     overflow-y: auto;
     color: #ddd;
     line-height: 1.6;
@@ -230,17 +230,17 @@
 
 /* Mobile modal adjustments */
 @media (max-width: 50em) {
-    .review-modal-content {
+    .reviewModalContent {
         max-width: 95%;
         max-height: 90vh;
     }
     
-    .review-modal-header,
-    .review-modal-body {
+    .reviewModalHeader,
+    .reviewModalBody {
         padding: 1em;
     }
     
-    .review-modal-body {
+    .reviewModalBody {
         font-size: 0.95rem;
     }
 }

@@ -260,7 +260,7 @@
                                         ${escapedContent}
                                     </div>
                                     <div class="readMoreContainer">
-                                        <button id="review-toggle-${reviewId}" class="read-more-btn" style="display: none;">Read more...</button>
+                                        <button id="review-toggle-${reviewId}" class="readMoreBtn" style="display: none;">Read more...</button>
                                     </div>
                                 </div>
                             </div>
@@ -290,21 +290,21 @@
                                 toggleBtn.addEventListener('click', () => {
                                     // Create modal overlay
                                     const modal = document.createElement('div');
-                                    modal.className = 'review-modal-overlay';
+                                    modal.className = 'reviewModalOverlay';
                                     const escapedAuthorModal = escapeHtml(review.author);
                                     const escapedRatingModal = escapeHtml(review.rating);
                                     const escapedContentModal = escapeHtml(review.content).replace(/\n/g, '<br>');
                                     
                                     modal.innerHTML = `
-                                        <div class="review-modal-content">
-                                            <div class="review-modal-header">
+                                        <div class="reviewModalContent">
+                                            <div class="reviewModalHeader">
                                                 <div>
                                                     <strong style="font-size: 1.1em;">${escapedAuthorModal}</strong>
                                                     ${review.rating ? `<span style="margin-left: 4px;">${escapedRatingModal}/10</span>` : ''}
                                                 </div>
-                                                <button class="review-modal-close" title="Close">&times;</button>
+                                                <button class="reviewModalClose" title="Close">&times;</button>
                                             </div>
-                                            <div class="review-modal-body">
+                                            <div class="reviewModalBody">
                                                 ${escapedContentModal}
                                             </div>
                                         </div>
@@ -326,7 +326,7 @@
                                         if (e.target === modal) closeModal();
                                     });
                                     
-                                    modal.querySelector('.review-modal-close').addEventListener('click', closeModal);
+                                    modal.querySelector('.reviewModalClose').addEventListener('click', closeModal);
                                     
                                     // Close on Escape key
                                     const escapeHandler = (e) => {
