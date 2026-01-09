@@ -16,6 +16,16 @@
         return div.innerHTML;
     }
     
+    // Convert line breaks to <br> tags after escaping
+    function sanitizeAndFormatContent(text) {
+        // First escape all HTML to prevent XSS
+        let sanitized = escapeHtml(text);
+        // Then convert escaped br tags and newlines to proper br tags
+        sanitized = sanitized.replace(/&lt;br\s*\/?&gt;/gi, '<br>');
+        sanitized = sanitized.replace(/\n/g, '<br>');
+        return sanitized;
+    }
+    
     async function getMovieData(itemId) {
         try {
             const apiClient = window.ApiClient;
@@ -240,7 +250,7 @@
                     reviews.forEach((review, index) => {
                         const escapedAuthor = escapeHtml(review.author);
                         const escapedRating = escapeHtml(review.rating);
-                        const escapedContent = escapeHtml(review.content).replace(/\n/g, '<br>');
+                        const escapedContent = sanitizeAndFormatContent(review.content);
                         const ratingText = review.rating ? `<span>${escapedRating}/10</span>`: '';
                         const reviewId = `${itemId}-${index}`;
                         
@@ -293,7 +303,7 @@
                                     modal.className = 'reviewModalOverlay';
                                     const escapedAuthorModal = escapeHtml(review.author);
                                     const escapedRatingModal = escapeHtml(review.rating);
-                                    const escapedContentModal = escapeHtml(review.content).replace(/\n/g, '<br>');
+                                    const escapedContentModal = sanitizeAndFormatContent(review.content);
                                     
                                     modal.innerHTML = `
                                         <div class="reviewModalContent">

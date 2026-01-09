@@ -174,7 +174,7 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: .5em;
+    padding: .5em .9em;
     border-bottom: 1px solid var(--borderColor, #555);
     color: #fff;
 }
@@ -201,7 +201,7 @@
 }
 
 .reviewModalBody {
-    padding: .5em;
+    padding: .5em .9em;
     overflow-y: auto;
     color: #ddd;
     line-height: 1.6;
