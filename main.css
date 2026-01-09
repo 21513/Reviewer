@@ -13,17 +13,17 @@
 }
 
 /* Scroll buttons container */
-.reviewer-scroll-buttons {
+.reviewerScrollButtons {
     display: flex;
 }
 
-.reviewer-scroll-left:hover:not([disabled]),
-.reviewer-scroll-right:hover:not([disabled]) {
+.reviewerScrollLeft:hover:not([disabled]),
+.reviewerScrollRight:hover:not([disabled]) {
     background: var(--buttonBackgroundHover, rgba(255,255,255,0.2));
 }
 
-.reviewer-scroll-left[disabled],
-.reviewer-scroll-right[disabled] {
+.reviewerScrollLeft[disabled],
+.reviewerScrollRight[disabled] {
     opacity: .3;
 }
 
@@ -67,23 +67,23 @@
     margin-top: 0.6em;
 }
 
-.review-text-truncated {
+.reviewTextTruncated {
     color: #ddd;
     line-height: 1.4;
-    max-height: 150px;
+    max-height: 192px;
     overflow: hidden;
     text-overflow: ellipsis;
     display: -webkit-box;
-    -webkit-line-clamp: 6;
-    line-clamp: 6;
+    -webkit-line-clamp: 8;
+    line-clamp: 8;
     -webkit-box-orient: vertical;
 }
-.read-more-container {
+.readMoreContainer {
     display: flex;
     justify-content: flex-end;
     margin-top: 5px;
 }
-.read-more-container {
+.readMoreContainer {
     display: flex;
     justify-content: flex-end;
     margin-top: 5px;
@@ -150,6 +150,10 @@
     border: 1px solid rgba(255, 255, 255, 0.6);
     cursor: pointer;
     transition: all 0.3s ease;
+}
+
+.starIcon {
+    margin-right: 0 !important;
 }
 
 .carousel-dot.active {

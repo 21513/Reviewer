@@ -79,8 +79,8 @@
     
     function initializeReviewScrollButtons(container) {
         const scrollContainer = container.querySelector('.reviewsContainer');
-        const leftBtn = container.querySelector('.reviewer-scroll-left');
-        const rightBtn = container.querySelector('.reviewer-scroll-right');
+        const leftBtn = container.querySelector('.reviewerScrollLeft');
+        const rightBtn = container.querySelector('.reviewerScrollRight');
         
         if (!scrollContainer || !leftBtn || !rightBtn) {
             console.log('⚠️ Review scroll elements not found');
@@ -222,11 +222,11 @@
                                 <h2 class="sectionTitle sectionTitle-cards padded-right">
                                     IMDb Reviews
                                 </h2>
-                                <div class="reviewer-scroll-buttons">
-                                    <button type="button" class="reviewer-scroll-left paper-icon-button-light" title="Previous">
+                                <div class="reviewerScrollButtons">
+                                    <button type="button" class="reviewerScrollLeft paper-icon-button-light" title="Previous">
                                         <span class="material-icons chevron_left" aria-hidden="true"></span>
                                     </button>
-                                    <button type="button" class="reviewer-scroll-right paper-icon-button-light" title="Next">
+                                    <button type="button" class="reviewerScrollRight paper-icon-button-light" title="Next">
                                         <span class="material-icons chevron_right" aria-hidden="true"></span>
                                     </button>
                                 </div>
@@ -235,7 +235,7 @@
                         `;
                     
                     reviews.forEach((review, index) => {
-                        const ratingText = review.rating ? `<span style="color: #ffc107;">${review.rating}/10</span>`: '';
+                        const ratingText = review.rating ? `<span>${review.rating}/10</span>`: '';
                         const reviewId = `${itemId}-${index}`;
                         
                         reviewsHtml += `
@@ -250,10 +250,10 @@
                                     </div>
                                 </div>
                                 <div id="review-container-${reviewId}" style="position: relative;">
-                                    <div id="review-text-${reviewId}" class="review-text-truncated">
+                                    <div class="reviewTextTruncated" id="review-text-${reviewId}">
                                         ${review.content}
                                     </div>
-                                    <div class="read-more-container">
+                                    <div class="readMoreContainer">
                                         <button id="review-toggle-${reviewId}" class="read-more-btn" style="display: none;">Read more...</button>
                                     </div>
                                 </div>
@@ -290,7 +290,7 @@
                                             <div class="review-modal-header">
                                                 <div>
                                                     <strong style="font-size: 1.1em;">${review.author}</strong>
-                                                    ${review.rating ? `<span style="color: #ffc107; margin-left: 10px;">${review.rating}/10</span>` : ''}
+                                                    ${review.rating ? `<span style="margin-left: 4px;">${review.rating}/10</span>` : ''}
                                                 </div>
                                                 <button class="review-modal-close" title="Close">&times;</button>
                                             </div>

@@ -1,0 +1,55 @@
+name: Build and Release Plugin
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '9.0.x'
+        
+    - name: Restore dependencies
+      run: dotnet restore
+      
+    - name: Build plugin
+      run: dotnet build --configuration Release --no-restore
+      
+    - name: Create plugin package
+      run: |
+        mkdir -p plugin-package
+        cp bin/Release/net9.0/Jellyfeatured.dll plugin-package/
+        cp manifest.json plugin-package/
+        cd plugin-package
+        zip -r ../Jellyfeatured-${{ github.event.release.tag_name }}.zip .
+        
+    - name: Upload plugin to release
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ github.event.release.upload_url }}
+        asset_path: ./Jellyfeatured-${{ github.event.release.tag_name }}.zip
+        asset_name: Jellyfeatured-${{ github.event.release.tag_name }}.zip
+        asset_content_type: application/zip
+        
+    - name: Upload DLL to release
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ github.event.release.upload_url }}
+        asset_path: ./bin/Release/net9.0/Jellyfeatured.dll
+        asset_name: Jellyfeatured.dll
+        asset_content_type: application/octet-stream
