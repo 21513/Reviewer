@@ -77,6 +77,55 @@
         }
     }
     
+    function initializeReviewScrollButtons(container) {
+        const scrollContainer = container.querySelector('.reviewsContainer');
+        const leftBtn = container.querySelector('.reviewer-scroll-left');
+        const rightBtn = container.querySelector('.reviewer-scroll-right');
+        
+        if (!scrollContainer || !leftBtn || !rightBtn) {
+            console.log('⚠️ Review scroll elements not found');
+            return;
+        }
+        
+        const scrollAmount = 544; // 512px width + 32px gap
+        
+        function updateButtonStates() {
+            const scrollLeft = scrollContainer.scrollLeft;
+            const maxScroll = scrollContainer.scrollWidth - scrollContainer.clientWidth;
+            
+            // Disable left button if at start
+            if (scrollLeft <= 0) {
+                leftBtn.setAttribute('disabled', '');
+            } else {
+                leftBtn.removeAttribute('disabled');
+            }
+            
+            // Disable right button if at end
+            if (scrollLeft >= maxScroll - 1) {
+                rightBtn.setAttribute('disabled', '');
+            } else {
+                rightBtn.removeAttribute('disabled');
+            }
+        }
+        
+        leftBtn.addEventListener('click', () => {
+            scrollContainer.scrollBy({ left: -scrollAmount, behavior: 'smooth' });
+            setTimeout(updateButtonStates, 300);
+        });
+        
+        rightBtn.addEventListener('click', () => {
+            scrollContainer.scrollBy({ left: scrollAmount, behavior: 'smooth' });
+            setTimeout(updateButtonStates, 300);
+        });
+        
+        scrollContainer.addEventListener('scroll', updateButtonStates);
+        
+        // Initial state
+        updateButtonStates();
+        
+        console.log('✅ Review scroll buttons initialized');
+    }
+    
     async function injectOnMoviePage() {
         console.log('🔍 Checking for movie page...', window.location.hash);
         
@@ -171,6 +220,14 @@
                                     IMDb Reviews
                                 </h2>
                             </div>
+                            <div is="emby-scrollbuttons" class="emby-scrollbuttons padded-right">
+                                <button type="button" is="paper-icon-button-light" data-ripple="false" data-direction="left" title="Previous" class="emby-scrollbuttons-button paper-icon-button-light reviewer-scroll-left">
+                                    <span class="material-icons chevron_left" aria-hidden="true"></span>
+                                </button>
+                                <button type="button" is="paper-icon-button-light" data-ripple="false" data-direction="right" title="Next" class="emby-scrollbuttons-button paper-icon-button-light reviewer-scroll-right">
+                                    <span class="material-icons chevron_right" aria-hidden="true"></span>
+                                </button>
+                            </div>
                             <div class="reviewsContainer">
                         `;
                     
@@ -197,6 +254,11 @@
                     
                     reviewsHtml += '</div>';
                     reviewerDiv.innerHTML = `<style>${cssStyles}</style>` + reviewsHtml;
+                    
+                    // Initialize scroll buttons
+                    setTimeout(() => {
+                        initializeReviewScrollButtons(reviewerDiv);
+                    }, 100);
                     
                     // Add modal functionality for each review
                     reviews.forEach((review, index) => {
