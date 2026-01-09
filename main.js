@@ -188,7 +188,7 @@
                                         ${review.content}
                                     </div>
                                     <div class="read-more-container">
-                                        <button id="review-toggle-${reviewId}" class="read-more-btn">Read more...</button>
+                                        <button id="review-toggle-${reviewId}" class="read-more-btn" style="display: none;">Read more...</button>
                                     </div>
                                 </div>
                             </div>
@@ -205,9 +205,10 @@
                         const toggleBtn = reviewerDiv.querySelector(`#review-toggle-${reviewId}`);
                         
                         if (textDiv && toggleBtn) {
-                            // Check if content is taller than max-height
-                            if (textDiv.scrollHeight > textDiv.clientHeight) {
-                                toggleBtn.style.display = 'inline-block';
+                            // Check if content is taller than max-height - need a small delay for proper measurement
+                            setTimeout(() => {
+                                if (textDiv.scrollHeight > textDiv.clientHeight) {
+                                    toggleBtn.style.display = 'inline-block';
                                 
                                 toggleBtn.addEventListener('click', () => {
                                     // Create modal overlay
@@ -230,9 +231,14 @@
                                     
                                     document.body.appendChild(modal);
                                     
+                                    // Disable scrolling on main page
+                                    document.body.style.overflow = 'hidden';
+                                    
                                     // Close on background click or close button
                                     const closeModal = () => {
                                         modal.remove();
+                                        // Re-enable scrolling on main page
+                                        document.body.style.overflow = '';
                                     };
                                     
                                     modal.addEventListener('click', (e) => {
@@ -251,6 +257,7 @@
                                     document.addEventListener('keydown', escapeHandler);
                                 });
                             }
+                            }, 50);
                         }
                     });
                 } else {

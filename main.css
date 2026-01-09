@@ -3,7 +3,6 @@
 #reviewer-black-div {
     display: grid;
     justify-content: left;
-    width: 100%;
     position: relative;
     z-index: 1000;
     gap: var(--itemColumnGap);
@@ -15,8 +14,11 @@
 
 .reviewsContainer{
     display: flex;
-    width: 100%;
     gap: var(--itemColumnGap);
+
+    overflow: scroll;
+    scroll-behavior: smooth;
+    width: fit-content;
 }
 
 .reviewsSource {
@@ -31,7 +33,7 @@
     font-family: 'Inter', sans-serif;
     color: #ffffff;
     background-color: var(--lighterGradientPointAlpha);
-    width: 25vw;
+    width: 512px;
     line-clamp: 12;
     -webkit-line-clamp: 12;
     border: var(--defaultBorder);
@@ -204,8 +206,8 @@
     border: var(--defaultBorder);
     border-radius: var(--largeRadius, 1em);
     box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
-    max-width: 800px;
-    max-height: 85vh;
+    max-width: 1024px;
+    height: 60vh;
     width: 100%;
     display: flex;
     flex-direction: column;
