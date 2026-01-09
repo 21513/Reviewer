@@ -1,26 +1,20 @@
 (function() {
     'use strict';
     
-    console.log('🎬 Reviewer Plugin: Script loaded');
-    
     const htmlTemplate = `{{HTML_TEMPLATE}}`;
-    
-    // Extract CSS from template to inject separately
+
     const cssMatch = htmlTemplate.match(/<style>([\s\S]*?)<\/style>/);
     const cssStyles = cssMatch ? cssMatch[1] : '';
-    
-    // HTML escape function to prevent XSS
+
     function escapeHtml(text) {
         const div = document.createElement('div');
         div.textContent = text;
         return div.innerHTML;
     }
-    
-    // Convert line breaks to <br> tags after escaping
+
     function sanitizeAndFormatContent(text) {
-        // First escape all HTML to prevent XSS
         let sanitized = escapeHtml(text);
-        // Then convert escaped br tags and newlines to proper br tags
+
         sanitized = sanitized.replace(/&lt;br\s*\/?&gt;/gi, '<br>');
         sanitized = sanitized.replace(/\n/g, '<br>');
         return sanitized;
@@ -30,47 +24,37 @@
         try {
             const apiClient = window.ApiClient;
             if (!apiClient) {
-                console.error('❌ ApiClient not available');
                 return null;
             }
             
             const item = await apiClient.getItem(apiClient.getCurrentUserId(), itemId);
-            console.log('📊 Movie data:', item);
             return item;
         } catch (error) {
-            console.error('❌ Error fetching movie data:', error);
             return null;
         }
     }
     
     async function fetchImdbReview(imdbId) {
         try {
-            console.log('🔍 [Reviewer] Fetching IMDb review for:', imdbId);
+            console.log('[Reviewer] Fetching IMDb review for:', imdbId);
             
             const apiClient = window.ApiClient;
             const url = `Reviewer/GetReview?imdbId=${imdbId}`;
-            
-            console.log('📡 [Reviewer] API URL:', url);
-            
-            // Use ApiClient's ajax method which handles authentication automatically
+
             const reviewData = await apiClient.ajax({
                 type: 'GET',
                 url: apiClient.getUrl(url),
                 dataType: 'text'
             });
             
-            console.log('📊 [Reviewer] Response received');
-            console.log('📊 [Reviewer] Review data received, length:', reviewData.length);
-            console.log('📊 [Reviewer] Raw response (first 200 chars):', reviewData.substring(0, 200));
+            console.log('[Reviewer] Response received');
+            console.log('[Reviewer] Review data received, length:', reviewData.length);
             
             if (reviewData) {
-                // Split by @@@ to get multiple reviews
                 const reviewBlocks = reviewData.split('@@@');
-                console.log('📊 [Reviewer] Found', reviewBlocks.length, 'review(s)');
                 
                 const reviews = reviewBlocks.map((block, index) => {
                     const parts = block.split('|||');
-                    console.log(`📊 [Reviewer] Review ${index + 1}: ${parts[0]} - ${parts[1]}/10`);
                     return {
                         author: parts[0] || 'Anonymous',
                         rating: parts[1] || '',
@@ -81,11 +65,10 @@
                 return reviews;
             }
             
-            console.log('❌ [Reviewer] No review data returned');
             return null;
         } catch (error) {
-            console.error('❌ [Reviewer] Error fetching IMDb review:', error);
-            console.error('❌ [Reviewer] Error stack:', error.stack);
+            console.error('[Reviewer] Error fetching IMDb review:', error);
+            console.error('[Reviewer] Error stack:', error.stack);
             return null;
         }
     }
@@ -96,24 +79,21 @@
         const rightBtn = container.querySelector('.reviewerScrollRight');
         
         if (!scrollContainer || !leftBtn || !rightBtn) {
-            console.log('⚠️ Review scroll elements not found');
             return;
         }
         
-        const scrollAmount = 1088; // (512px width + 32px gap) * 2
+        const scrollAmount = 1088;
         
         function updateButtonStates() {
             const scrollLeft = scrollContainer.scrollLeft;
             const maxScroll = scrollContainer.scrollWidth - scrollContainer.clientWidth;
-            
-            // Disable left button if at start
+
             if (scrollLeft <= 0) {
                 leftBtn.setAttribute('disabled', '');
             } else {
                 leftBtn.removeAttribute('disabled');
             }
-            
-            // Disable right button if at end
+
             if (scrollLeft >= maxScroll - 1) {
                 rightBtn.setAttribute('disabled', '');
             } else {
@@ -135,20 +115,14 @@
         rightBtn.addEventListener('click', scrollRight);
         
         scrollContainer.addEventListener('scroll', updateButtonStates);
-        
-        // Initial state
+
         updateButtonStates();
-        
-        console.log('✅ Review scroll buttons initialized');
     }
     
     async function injectOnMoviePage() {
-        console.log('🔍 Checking for movie page...', window.location.hash);
-        
         const isDetailPage = window.location.hash.includes('/details?id=');
         
         if (!isDetailPage) {
-            console.log('❌ Not a detail page');
             return;
         }
         
@@ -156,24 +130,18 @@
         const itemId = urlParams.get('id');
         
         if (!itemId) {
-            console.log('❌ No item ID found in URL');
             return;
         }
         
         const existingDiv = document.getElementById('reviewer-black-div');
-        // Check if the div exists and is for the same item
         if (existingDiv && existingDiv.dataset.itemId === itemId) {
-            console.log('✅ Div already exists for this item');
             return;
         }
         
-        // Remove div if it's for a different item
         if (existingDiv) {
             existingDiv.remove();
-            console.log('🗑️ Removed existing div (different item)');
         }
         
-        // Find the cast section to insert reviews before it
         const castSection = document.querySelector('#castCollapsible');
         
         let targetContainer = null;
@@ -182,9 +150,7 @@
         if (castSection && castSection.parentElement) {
             targetContainer = castSection.parentElement;
             insertPosition = castSection;
-            console.log('📍 Found castCollapsible - will insert reviews before Cast & Crew');
         } else {
-            // Fallback to original logic if cast section not found
             const detailWrapper = document.querySelector('.detailPageWrapperContainer');
             const detailPrimary = document.querySelector('.detailPagePrimaryContent');
             const detailRibbon = document.querySelector('.detailRibbon');
@@ -208,27 +174,26 @@
             const tempDiv = document.createElement('div');
             tempDiv.innerHTML = htmlTemplate;
             const reviewerDiv = tempDiv.firstElementChild;
-            reviewerDiv.dataset.itemId = itemId;  // Store item ID on the div
+            reviewerDiv.dataset.itemId = itemId;
             
             if (insertPosition) {
                 targetContainer.insertBefore(reviewerDiv, insertPosition);
             } else {
                 targetContainer.appendChild(reviewerDiv);
             }
-            console.log('✅ Reviewer Plugin: Injected div into movie page');
             
             reviewerDiv.innerHTML = `<style>${cssStyles}</style><div style="padding: 20px; text-align: center; color: #aaa;">Loading IMDb reviews...</div>`;
             
             const movieData = await getMovieData(itemId);
-            console.log('🎬 [Reviewer] Movie data:', movieData);
+            console.log('[Reviewer] Movie data:', movieData);
             
             if (movieData && movieData.ProviderIds && movieData.ProviderIds.Imdb) {
                 const imdbId = movieData.ProviderIds.Imdb;
-                console.log('🎬 [Reviewer] IMDb ID:', imdbId);
+                console.log('[Reviewer] IMDb ID:', imdbId);
                 
                 const reviews = await fetchImdbReview(imdbId);
                 if (reviews && reviews.length > 0) {
-                    console.log('✅ [Reviewer] Successfully loaded', reviews.length, 'reviews');
+                    console.log('[Reviewer] Successfully loaded', reviews.length, 'reviews');
                     
                     let reviewsHtml = `
                             <div class="reviewsSource">
@@ -270,7 +235,7 @@
                                         ${escapedContent}
                                     </div>
                                     <div class="readMoreContainer">
-                                        <button id="review-toggle-${reviewId}" class="readMoreBtn" style="display: none;">Read more...</button>
+                                        <button id="review-toggle-${reviewId}" class="readMoreButton" style="display: none;">Read more...</button>
                                     </div>
                                 </div>
                             </div>
@@ -280,25 +245,21 @@
                     reviewsHtml += '</div>';
                     reviewerDiv.innerHTML = `<style>${cssStyles}</style>` + reviewsHtml;
                     
-                    // Initialize scroll buttons after DOM is ready
                     setTimeout(() => {
                         initializeReviewScrollButtons(reviewerDiv);
                     }, 100);
-                    
-                    // Add modal functionality for each review
+
                     reviews.forEach((review, index) => {
                         const reviewId = `${itemId}-${index}`;
                         const textDiv = reviewerDiv.querySelector(`#review-text-${reviewId}`);
                         const toggleBtn = reviewerDiv.querySelector(`#review-toggle-${reviewId}`);
                         
                         if (textDiv && toggleBtn) {
-                            // Check if content is taller than max-height - need a small delay for proper measurement
                             setTimeout(() => {
                                 if (textDiv.scrollHeight > textDiv.clientHeight) {
                                     toggleBtn.style.display = 'inline-block';
                                 
                                 toggleBtn.addEventListener('click', () => {
-                                    // Create modal overlay
                                     const modal = document.createElement('div');
                                     modal.className = 'reviewModalOverlay';
                                     const escapedAuthorModal = escapeHtml(review.author);
@@ -321,14 +282,11 @@
                                     `;
                                     
                                     document.body.appendChild(modal);
-                                    
-                                    // Disable scrolling on main page
+
                                     document.body.style.overflow = 'hidden';
-                                    
-                                    // Close on background click or close button
+
                                     const closeModal = () => {
                                         modal.remove();
-                                        // Re-enable scrolling on main page
                                         document.body.style.overflow = '';
                                     };
                                     
@@ -337,8 +295,7 @@
                                     });
                                     
                                     modal.querySelector('.reviewModalClose').addEventListener('click', closeModal);
-                                    
-                                    // Close on Escape key
+
                                     const escapeHandler = (e) => {
                                         if (e.key === 'Escape') {
                                             closeModal();
@@ -352,25 +309,19 @@
                         }
                     });
                 } else {
-                    console.log('❌ [Reviewer] No review available');
                     reviewerDiv.innerHTML = `<style>${cssStyles}</style><div style="padding: 20px; color: #999;">No IMDb reviews available</div>`;
                 }
             } else {
-                console.log('❌ [Reviewer] No IMDb ID found in movie data');
                 reviewerDiv.innerHTML = `<style>${cssStyles}</style><div style="padding: 20px; color: #999;">No IMDb ID available for this movie</div>`;
             }
-        } else {
-            console.log('❌ Could not find suitable container');
         }
     }
     
     document.addEventListener('viewshow', function(e) {
-        console.log('📄 Page view changed', e.detail);
         setTimeout(injectOnMoviePage, 200);
     });
     
     window.addEventListener('hashchange', function() {
-        console.log('🔗 Hash changed to:', window.location.hash);
         setTimeout(injectOnMoviePage, 200);
     });
     
@@ -381,7 +332,6 @@
     }
     
     window.addEventListener('load', function() {
-        console.log('🌐 Window loaded');
         setTimeout(injectOnMoviePage, 500);
     });
     

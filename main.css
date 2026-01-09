@@ -8,11 +8,24 @@
     gap: var(--itemColumnGap);
 }
 
-.reviewer-content {
+#reviewer-black-div h2 {
+    padding-top: 1.25em !important;
+    margin: 0 0 -0.5em 0;
+}
+
+#reviewer-black-div h3 {
+    margin: 0;
+    color: #fff;
+}
+
+#reviewer-black-div strong {
+    color: inherit;
+}
+
+.reviewerContent {
     padding: 0;
 }
 
-/* Scroll buttons container */
 .reviewerScrollButtons {
     display: flex;
 }
@@ -32,13 +45,13 @@
     overflow-x: auto;
     overflow-y: hidden;
     scroll-behavior: smooth;
-    scrollbar-width: none; /* Firefox */
-    -ms-overflow-style: none; /* IE and Edge */
+    scrollbar-width: none;
+    -ms-overflow-style: none;
 }
 
 
 .reviewsContainer::-webkit-scrollbar {
-    display: none; /* Chrome, Safari, Opera */
+    display: none;
 }
 
 .reviewsSource {
@@ -93,7 +106,7 @@
     display: grid;
 }
 
-.readMoreBtn {
+.readMoreButton {
     flex-direction: row;
     font-family: inherit;
     font-size: inherit;
@@ -108,31 +121,16 @@
     transition: .2s;
 }
 
-.readMoreBtn:hover {
+.readMoreButton:hover {
     background-color: #e2b616 !important;
     color: black !important;
     transition: .2s;
-}
-
-#reviewer-black-div h2 {
-    padding-top: 1.25em !important;
-    margin: 0 0 -0.5em 0;
-}
-
-#reviewer-black-div h3 {
-    margin: 0;
-    color: #fff;
-}
-
-#reviewer-black-div strong {
-    color: inherit;
 }
 
 .starIcon {
     margin-right: 0 !important;
 }
 
-/* Mobile Responsive */
 @media (max-width: 50em) {
     #Reviewer-div {
         height: 250px;
@@ -140,7 +138,6 @@
     }
 }
 
-/* Modal Overlay Styles */
 .reviewModalOverlay {
     position: fixed;
     top: 0;
@@ -228,7 +225,6 @@
     }
 }
 
-/* Mobile modal adjustments */
 @media (max-width: 50em) {
     .reviewModalContent {
         max-width: 95%;
@@ -245,7 +241,6 @@
     }
 }
 
-/* Animation for slide entrance */
 @keyframes slideIn {
     from {
         opacity: 0;
