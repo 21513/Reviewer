@@ -235,13 +235,19 @@
                         `;
                     
                     reviews.forEach((review, index) => {
-                        const ratingText = review.rating ? ` <span style="color: #ffc107;">${review.rating}/10</span>` : '';
+                        const ratingText = review.rating ? `<span style="color: #ffc107;">${review.rating}/10</span>`: '';
                         const reviewId = `${itemId}-${index}`;
                         
                         reviewsHtml += `
                             <div class="reviewContainer" style="margin-bottom: 20px; padding-bottom: 20px; border-bottom: 1px solid #333;">
-                                <div style="margin-bottom: 10px; color: #aaa; font-size: 14px;">
-                                    by <strong>${review.author}</strong>${ratingText}
+                                <div class="reviewDetails">
+                                    <div style="margin-bottom: 4px; color: #aaa; font-size: 14px;">
+                                        by <strong>${review.author}</strong>
+                                    </div>
+                                    <div style="margin-bottom: 4px;">
+                                        <span class="material-icons starIcon star" aria-hidden="true"></span>
+                                        ${ratingText}
+                                    </div>
                                 </div>
                                 <div id="review-container-${reviewId}" style="position: relative;">
                                     <div id="review-text-${reviewId}" class="review-text-truncated">

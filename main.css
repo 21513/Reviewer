@@ -89,6 +89,10 @@
     margin-top: 5px;
 }
 
+.reviewDetails {
+    display: grid;
+}
+
 .read-more-btn {
     flex-direction: row;
     font-family: inherit;
