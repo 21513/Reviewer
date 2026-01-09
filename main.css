@@ -205,6 +205,10 @@
     font-size: 1rem;
 }
 
+.streamCountText {
+    color: var(--textColor);
+}
+
 @keyframes fadeIn {
     from {
         opacity: 0;

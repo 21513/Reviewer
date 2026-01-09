@@ -224,13 +224,22 @@
                         return;
                     }
                     
+                    // Set flex layout on parent
+                    mediaInfo.style.display = 'flex';
+                    mediaInfo.style.alignItems = 'center';
+                    mediaInfo.style.gap = '10px';
+                    
                     // Create stream count element
                     const streamCountDiv = document.createElement('div');
                     streamCountDiv.className = 'mediaInfoItem reviewer-stream-count';
-                    streamCountDiv.style.color = '#1DB954';
                     streamCountDiv.style.fontWeight = '500';
+                    streamCountDiv.style.flex = '1';
+                    streamCountDiv.style.textAlign = 'center';
                     streamCountDiv.title = `${streamData.streamCount} Spotify streams`;
-                    streamCountDiv.innerHTML = `<span style="font-size: 0.85em;">🎵</span> ${escapeHtml(streamData.streamCount)}`;
+                    streamCountDiv.innerHTML = `${escapeHtml(streamData.streamCount)}`;
+                    
+                    // Make parent relative for absolute positioning
+                    mediaInfo.style.position = 'relative';
                     
                     // Insert before the duration (first child)
                     mediaInfo.insertBefore(streamCountDiv, mediaInfo.firstChild);
@@ -572,12 +581,11 @@
                 let streamHtml = `
                     <div style="background: rgba(0,0,0,0.3); border-radius: 8px; padding: 20px; margin-bottom: 20px;">
                         <h2 class="sectionTitle sectionTitle-cards" style="margin-bottom: 15px;">
-                            🎵 Spotify Streams
+                            Spotify Streams
                         </h2>
                         <div style="display: flex; flex-direction: column; gap: 12px;">
                             <div style="display: flex; align-items: center; gap: 10px;">
-                                <span style="font-size: 48px; font-weight: bold; color: #1DB954;">${escapeHtml(streamData.streamCount)}</span>
-                                <span style="color: #aaa; font-size: 18px;">total streams</span>
+                                <span class="streamCountText">${escapeHtml(streamData.streamCount)}</span>
                             </div>`;
                 
                 if (streamData.releaseDate) {
