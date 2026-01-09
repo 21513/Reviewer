@@ -87,7 +87,7 @@
             return;
         }
         
-        const scrollAmount = 544; // 512px width + 32px gap
+        const scrollAmount = 1088; // (512px width + 32px gap) * 2
         
         function updateButtonStates() {
             const scrollLeft = scrollContainer.scrollLeft;
@@ -222,14 +222,14 @@
                                 <h2 class="sectionTitle sectionTitle-cards padded-right">
                                     IMDb Reviews
                                 </h2>
-                            </div>
-                            <div class="reviewer-scroll-buttons">
-                                <button type="button" class="reviewer-scroll-left paper-icon-button-light" title="Previous">
-                                    <span class="material-icons chevron_left" aria-hidden="true"></span>
-                                </button>
-                                <button type="button" class="reviewer-scroll-right paper-icon-button-light" title="Next">
-                                    <span class="material-icons chevron_right" aria-hidden="true"></span>
-                                </button>
+                                <div class="reviewer-scroll-buttons">
+                                    <button type="button" class="reviewer-scroll-left paper-icon-button-light" title="Previous">
+                                        <span class="material-icons chevron_left" aria-hidden="true"></span>
+                                    </button>
+                                    <button type="button" class="reviewer-scroll-right paper-icon-button-light" title="Next">
+                                        <span class="material-icons chevron_right" aria-hidden="true"></span>
+                                    </button>
+                                </div>
                             </div>
                             <div class="reviewsContainer">
                         `;
