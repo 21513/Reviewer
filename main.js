@@ -9,6 +9,13 @@
     const cssMatch = htmlTemplate.match(/<style>([\s\S]*?)<\/style>/);
     const cssStyles = cssMatch ? cssMatch[1] : '';
     
+    // HTML escape function to prevent XSS
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+    
     async function getMovieData(itemId) {
         try {
             const apiClient = window.ApiClient;
@@ -31,22 +38,18 @@
             console.log('🔍 [Reviewer] Fetching IMDb review for:', imdbId);
             
             const apiClient = window.ApiClient;
-            const serverAddress = apiClient.serverAddress();
-            const url = `${serverAddress}/Reviewer/GetReview?imdbId=${imdbId}`;
+            const url = `Reviewer/GetReview?imdbId=${imdbId}`;
             
             console.log('📡 [Reviewer] API URL:', url);
             
-            const response = await fetch(url);
-            console.log('📊 [Reviewer] Response status:', response.status, response.statusText);
+            // Use ApiClient's ajax method which handles authentication automatically
+            const reviewData = await apiClient.ajax({
+                type: 'GET',
+                url: apiClient.getUrl(url),
+                dataType: 'text'
+            });
             
-            if (!response.ok) {
-                console.log('⚠️ [Reviewer] Review API response not ok:', response.status);
-                const errorText = await response.text();
-                console.log('⚠️ [Reviewer] Error response:', errorText);
-                return null;
-            }
-            
-            const reviewData = await response.text();
+            console.log('📊 [Reviewer] Response received');
             console.log('📊 [Reviewer] Review data received, length:', reviewData.length);
             console.log('📊 [Reviewer] Raw response (first 200 chars):', reviewData.substring(0, 200));
             
@@ -235,14 +238,17 @@
                         `;
                     
                     reviews.forEach((review, index) => {
-                        const ratingText = review.rating ? `<span>${review.rating}/10</span>`: '';
+                        const escapedAuthor = escapeHtml(review.author);
+                        const escapedRating = escapeHtml(review.rating);
+                        const escapedContent = escapeHtml(review.content).replace(/\n/g, '<br>');
+                        const ratingText = review.rating ? `<span>${escapedRating}/10</span>`: '';
                         const reviewId = `${itemId}-${index}`;
                         
                         reviewsHtml += `
                             <div class="reviewContainer" style="margin-bottom: 20px; padding-bottom: 20px; border-bottom: 1px solid #333;">
                                 <div class="reviewDetails">
                                     <div style="margin-bottom: 4px; color: #aaa; font-size: 14px;">
-                                        by <strong>${review.author}</strong>
+                                        by <strong>${escapedAuthor}</strong>
                                     </div>
                                     <div style="margin-bottom: 4px;">
                                         <span class="material-icons starIcon star" aria-hidden="true"></span>
@@ -251,7 +257,7 @@
                                 </div>
                                 <div id="review-container-${reviewId}" style="position: relative;">
                                     <div class="reviewTextTruncated" id="review-text-${reviewId}">
-                                        ${review.content}
+                                        ${escapedContent}
                                     </div>
                                     <div class="readMoreContainer">
                                         <button id="review-toggle-${reviewId}" class="read-more-btn" style="display: none;">Read more...</button>
@@ -285,17 +291,21 @@
                                     // Create modal overlay
                                     const modal = document.createElement('div');
                                     modal.className = 'review-modal-overlay';
+                                    const escapedAuthorModal = escapeHtml(review.author);
+                                    const escapedRatingModal = escapeHtml(review.rating);
+                                    const escapedContentModal = escapeHtml(review.content).replace(/\n/g, '<br>');
+                                    
                                     modal.innerHTML = `
                                         <div class="review-modal-content">
                                             <div class="review-modal-header">
                                                 <div>
-                                                    <strong style="font-size: 1.1em;">${review.author}</strong>
-                                                    ${review.rating ? `<span style="margin-left: 4px;">${review.rating}/10</span>` : ''}
+                                                    <strong style="font-size: 1.1em;">${escapedAuthorModal}</strong>
+                                                    ${review.rating ? `<span style="margin-left: 4px;">${escapedRatingModal}/10</span>` : ''}
                                                 </div>
                                                 <button class="review-modal-close" title="Close">&times;</button>
                                             </div>
                                             <div class="review-modal-body">
-                                                ${review.content}
+                                                ${escapedContentModal}
                                             </div>
                                         </div>
                                     `;

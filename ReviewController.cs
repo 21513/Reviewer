@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -9,10 +10,12 @@ namespace Reviewer;
 /// Review API controller.
 /// </summary>
 [ApiController]
+[Authorize]
 [Route("Reviewer")]
 public class ReviewController : ControllerBase
 {
     private readonly ILogger<ReviewController> _logger;
+    private static readonly Regex ImdbIdPattern = new Regex(@"^tt\d{7,8}$", RegexOptions.Compiled);
 
     public ReviewController(ILogger<ReviewController> logger)
     {
@@ -25,7 +28,6 @@ public class ReviewController : ControllerBase
     /// <param name="imdbId">The IMDb ID.</param>
     /// <returns>Review text.</returns>
     [HttpGet("GetReview")]
-    [AllowAnonymous]
     public async Task<ActionResult<string>> GetReview([FromQuery] string imdbId)
     {
         _logger.LogInformation("🔍 [Reviewer] GetReview API called with IMDb ID: {ImdbId}", imdbId);
@@ -34,6 +36,13 @@ public class ReviewController : ControllerBase
         {
             _logger.LogWarning("❌ [Reviewer] No IMDb ID provided");
             return BadRequest("IMDb ID is required");
+        }
+        
+        // Validate IMDb ID format (must be tt followed by 7-8 digits)
+        if (!ImdbIdPattern.IsMatch(imdbId))
+        {
+            _logger.LogWarning("❌ [Reviewer] Invalid IMDb ID format: {ImdbId}", imdbId);
+            return BadRequest("Invalid IMDb ID format. Expected format: tt1234567");
         }
         
         var review = await Plugin.ScrapeImdbReview(imdbId);

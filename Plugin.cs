@@ -103,6 +103,14 @@ public class Plugin : BasePlugin<PluginConfiguration>
         }
     }
     
+    /// <summary>
+    /// WARNING: This method modifies Jellyfin's index.html file directly.
+    /// This can cause issues with:
+    /// - Jellyfin updates (file may be overwritten)
+    /// - Troubleshooting (unexpected modifications)
+    /// - System stability
+    /// Consider using Jellyfin's official plugin web hosting mechanism instead.
+    /// </summary>
     private async Task InjectIntoIndexHtmlAsync(IApplicationPaths applicationPaths)
     {
         try
@@ -144,10 +152,19 @@ public class Plugin : BasePlugin<PluginConfiguration>
         return input.Replace("\\", "\\\\").Replace("`", "\\`").Replace("$", "\\$");
     }
     
+    private static readonly Regex ImdbIdValidation = new Regex(@"^tt\d{7,8}$", RegexOptions.Compiled);
+    
     public static async Task<string?> ScrapeImdbReview(string imdbId)
     {
         try
         {
+            // Validate IMDb ID format to prevent SSRF attacks
+            if (string.IsNullOrEmpty(imdbId) || !ImdbIdValidation.IsMatch(imdbId))
+            {
+                System.Diagnostics.Debug.WriteLine($"❌ [Reviewer] Invalid IMDb ID format: {imdbId}");
+                return null;
+            }
+            
             System.Diagnostics.Debug.WriteLine($"🔍 [Reviewer] Scraping IMDb review for: {imdbId}");
             
             // Check cache first
@@ -163,6 +180,7 @@ public class Plugin : BasePlugin<PluginConfiguration>
             }
             
             using var httpClient = new HttpClient();
+            httpClient.Timeout = TimeSpan.FromSeconds(15); // Prevent hanging requests
             httpClient.DefaultRequestHeaders.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36");
             
             var url = $"https://www.imdb.com/title/{imdbId}/reviews";
