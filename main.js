@@ -187,6 +187,14 @@
             const movieData = await getMovieData(itemId);
             console.log('[Reviewer] Movie data:', movieData);
             
+            // Only show reviews for movies and TV shows (Series, Season, Episode)
+            const allowedTypes = ['Movie', 'Series', 'Season', 'Episode'];
+            if (!movieData || !allowedTypes.includes(movieData.Type)) {
+                console.log('[Reviewer] Item type not supported:', movieData?.Type);
+                reviewerDiv.remove();
+                return;
+            }
+            
             if (movieData && movieData.ProviderIds && movieData.ProviderIds.Imdb) {
                 const imdbId = movieData.ProviderIds.Imdb;
                 console.log('[Reviewer] IMDb ID:', imdbId);
