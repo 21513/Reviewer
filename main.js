@@ -5,6 +5,12 @@
 
     const cssMatch = htmlTemplate.match(/<style>([\s\S]*?)<\/style>/);
     const cssStyles = cssMatch ? cssMatch[1] : '';
+    
+    // Cache for stream counts
+    const streamCountCache = new Map();
+    
+    // Track which albums are currently being processed
+    const processingAlbums = new Set();
 
     function escapeHtml(text) {
         const div = document.createElement('div');
@@ -75,6 +81,13 @@
     
     async function fetchStreamCount(albumId, trackId, spotifyId, trackName, artistName) {
         try {
+            // Check cache first
+            const cacheKey = `${albumId || ''}_${trackId || ''}_${spotifyId || ''}_${trackName || ''}_${artistName || ''}`;
+            if (streamCountCache.has(cacheKey)) {
+                console.log('[Reviewer] Using cached stream count for track:', trackName);
+                return streamCountCache.get(cacheKey);
+            }
+            
             console.log('[Reviewer] Fetching stream count - Album ID:', albumId, 'Track ID:', trackId, 'Spotify ID:', spotifyId, 'Track:', trackName, 'Artist:', artistName);
             
             const apiClient = window.ApiClient;
@@ -111,12 +124,17 @@
             
             if (streamData) {
                 const parts = streamData.split('|||');
-                return {
+                const result = {
                     streamCount: parts[0] || '0',
                     trackName: parts[1] || '',
                     artistName: parts[2] || '',
                     releaseDate: parts[3] || ''
                 };
+                
+                // Cache the result
+                streamCountCache.set(cacheKey, result);
+                
+                return result;
             }
             
             return null;
@@ -520,6 +538,152 @@
         }
     }
     
+    async function injectAlbumTotalStreams() {
+        const isDetailPage = window.location.hash.includes('/details?id=');
+        
+        if (!isDetailPage) {
+            return;
+        }
+        
+        const urlParams = new URLSearchParams(window.location.hash.split('?')[1]);
+        const itemId = urlParams.get('id');
+        
+        if (!itemId) {
+            return;
+        }
+        
+        const albumData = await getMovieData(itemId);
+        console.log('[Reviewer] Album data:', albumData);
+        
+        // Only show total streams for MusicAlbum
+        if (!albumData || albumData.Type !== 'MusicAlbum') {
+            console.log('[Reviewer] Item type not MusicAlbum:', albumData?.Type);
+            return;
+        }
+        
+        // Check if already processing this album
+        if (processingAlbums.has(itemId)) {
+            console.log('[Reviewer] Already processing album:', itemId);
+            return;
+        }
+        
+        // Check if already injected - remove all existing instances first
+        const existingGroups = document.querySelectorAll('.detailsGroupItem.totalStreamsGroup');
+        if (existingGroups.length > 0) {
+            // If any of them match the current item ID, we're already done
+            for (const group of existingGroups) {
+                if (group.dataset.itemId === itemId) {
+                    console.log('[Reviewer] Total streams already displayed for this album');
+                    return;
+                }
+                // Remove any old ones from different albums
+                group.remove();
+            }
+        }
+        
+        // Mark as processing
+        processingAlbums.add(itemId);
+        
+        const apiClient = window.ApiClient;
+        if (!apiClient) {
+            return;
+        }
+        
+        try {
+            // Get all tracks in the album
+            const result = await apiClient.getItems(apiClient.getCurrentUserId(), {
+                parentId: itemId,
+                includeItemTypes: 'Audio',
+                sortBy: 'IndexNumber',
+                recursive: false
+            });
+            
+            if (!result || !result.Items || result.Items.length === 0) {
+                console.log('[Reviewer] No tracks found in album');
+                return;
+            }
+            
+            console.log(`[Reviewer] Found ${result.Items.length} tracks in album`);
+            
+            // Find target container - look for the genres group and insert after it
+            const genresGroup = document.querySelector('.detailsGroupItem.genresGroup');
+            if (!genresGroup) {
+                console.log('[Reviewer] Genres group not found');
+                return;
+            }
+            
+            const parentContainer = genresGroup.parentElement;
+            if (!parentContainer) {
+                console.log('[Reviewer] Parent container not found');
+                return;
+            }
+            
+            // Create placeholder element
+            const totalStreamsGroup = document.createElement('div');
+            totalStreamsGroup.className = 'detailsGroupItem totalStreamsGroup';
+            totalStreamsGroup.dataset.itemId = itemId;
+            totalStreamsGroup.innerHTML = `
+                <div class="totalStreamsLabel label">Total Streams</div>
+                <div class="totalStreams content">
+                    <span style="font-size: 0.9em;">Calculating...</span>
+                </div>
+            `;
+            
+            // Insert before genres group
+            parentContainer.insertBefore(totalStreamsGroup, genresGroup);
+            
+            // Fetch stream counts for all tracks
+            let totalStreams = 0;
+            let successCount = 0;
+            
+            for (const track of result.Items) {
+                const spotifyId = track.ProviderIds?.Spotify || null;
+                const trackName = track.Name || null;
+                const artistName = track.AlbumArtist || track.Artists?.[0] || null;
+                
+                if (!spotifyId && (!trackName || !artistName)) {
+                    continue;
+                }
+                
+                const streamData = await fetchStreamCount(itemId, track.Id, spotifyId, trackName, artistName);
+                
+                if (streamData && streamData.streamCount) {
+                    // Remove commas and convert to number
+                    const count = parseInt(streamData.streamCount.replace(/,/g, ''), 10);
+                    if (!isNaN(count)) {
+                        totalStreams += count;
+                        successCount++;
+                    }
+                }
+                
+                // Add delay to avoid overwhelming the API
+                await new Promise(resolve => setTimeout(resolve, 300));
+            }
+            
+            console.log(`[Reviewer] Total streams calculated: ${totalStreams} from ${successCount} tracks`);
+            
+            // Update the display
+            const totalStreamsContent = totalStreamsGroup.querySelector('.totalStreams.content');
+            if (totalStreamsContent) {
+                if (successCount > 0) {
+                    // Format number with commas
+                    const formattedTotal = totalStreams.toLocaleString();
+                    totalStreamsContent.innerHTML = `
+                        <span style="color: #fff; font-weight: 500;">${escapeHtml(formattedTotal)}</span>
+                    `;
+                } else {
+                    totalStreamsContent.innerHTML = `<span style="color: #999;">No stream data available</span>`;
+                }
+            }
+            
+        } catch (error) {
+            console.error('[Reviewer] Error calculating total streams:', error);
+        } finally {
+            // Remove from processing set
+            processingAlbums.delete(itemId);
+        }
+    }
+    
     async function injectOnMusicPage() {
         const isDetailPage = window.location.hash.includes('/details?id=');
         
@@ -630,12 +794,14 @@
     document.addEventListener('viewshow', function(e) {
         setTimeout(injectOnMoviePage, 200);
         setTimeout(injectOnMusicPage, 200);
+        setTimeout(injectAlbumTotalStreams, 200);
         setTimeout(injectStreamCountIntoTrackList, 500);
     });
     
     window.addEventListener('hashchange', function() {
         setTimeout(injectOnMoviePage, 200);
         setTimeout(injectOnMusicPage, 200);
+        setTimeout(injectAlbumTotalStreams, 200);
         setTimeout(injectStreamCountIntoTrackList, 500);
     });
     
@@ -643,17 +809,20 @@
         document.addEventListener('DOMContentLoaded', () => {
             injectOnMoviePage();
             injectOnMusicPage();
+            injectAlbumTotalStreams();
             setTimeout(injectStreamCountIntoTrackList, 500);
         });
     } else {
         setTimeout(injectOnMoviePage, 500);
         setTimeout(injectOnMusicPage, 500);
+        setTimeout(injectAlbumTotalStreams, 500);
         setTimeout(injectStreamCountIntoTrackList, 800);
     }
     
     window.addEventListener('load', function() {
         setTimeout(injectOnMoviePage, 500);
         setTimeout(injectOnMusicPage, 500);
+        setTimeout(injectAlbumTotalStreams, 500);
         setTimeout(injectStreamCountIntoTrackList, 800);
     });
     
