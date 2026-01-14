@@ -658,10 +658,10 @@
                     if (cachedTotal.successCount > 0) {
                         const formattedTotal = cachedTotal.totalStreams.toLocaleString();
                         totalStreamsContent.innerHTML = `
-                            <span style="color: #fff; font-weight: 500; white-space: nowrap;">${escapeHtml(formattedTotal)}</span>
+                            <span style="font-weight: 500; white-space: nowrap;">${escapeHtml(formattedTotal)}</span>
                         `;
                     } else {
-                        totalStreamsContent.innerHTML = `<span style="color: #999; white-space: nowrap;">No stream data available</span>`;
+                        totalStreamsContent.innerHTML = `<span style="white-space: nowrap;">No stream data available</span>`;
                     }
                 }
                 return;
@@ -717,10 +717,10 @@
                     // Format number with commas
                     const formattedTotal = totalStreams.toLocaleString();
                     totalStreamsContent.innerHTML = `
-                        <span style="color: #fff; font-weight: 500; white-space: nowrap;">${escapeHtml(formattedTotal)}</span>
+                        <span style="font-weight: 500; white-space: nowrap;">${escapeHtml(formattedTotal)}</span>
                     `;
                 } else {
-                    totalStreamsContent.innerHTML = `<span style="color: #999;">No stream data available</span>`;
+                    totalStreamsContent.innerHTML = `<span style="white-space: nowrap;">No stream data available</span>`;
                 }
             }
             
