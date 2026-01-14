@@ -9,6 +9,14 @@
         "imageUrl": "",
         "versions": [
             {
+                "version": "0.0.2.1",
+                "changelog": "Improved load times; Minor bug fixes; Added total streams for albums",
+                "targetAbi": "10.11.4.0",
+                "sourceUrl": "https://github.com/21513/Reviewer/releases/download/v0.0.2.1/Reviewer-v0.0.2.1.zip",
+                "checksum": "03ecc3dc147f814dac7beb13240f54d6",
+                "timestamp": "2026-01-09T19:48:03Z"
+            },
+            {
                 "version": "0.0.2.0",
                 "changelog": "Added stream counts to albums; Fixed minor bugs; Stable release",
                 "targetAbi": "10.11.4.0",
