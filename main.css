@@ -49,6 +49,13 @@
     -ms-overflow-style: none;
 }
 
+.reviewerStreamCount {
+    position: absolute;
+    transform: translateX(-25vw);
+    width: 128px;
+    text-align: left;
+}
+
 
 .reviewsContainer::-webkit-scrollbar {
     display: none;
@@ -238,6 +245,10 @@
     
     .reviewModalBody {
         font-size: 0.95rem;
+    }
+
+    .reviewerStreamCount {
+        display: none;
     }
 }
 

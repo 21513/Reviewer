@@ -130,6 +130,18 @@
     let requestQueue = [];
     let isProcessingQueue = false;
     
+    // Inject CSS styles into page if not already present
+    function injectStylesIfNeeded() {
+        if (document.getElementById('reviewer-plugin-styles')) {
+            return;
+        }
+        
+        const styleElement = document.createElement('style');
+        styleElement.id = 'reviewer-plugin-styles';
+        styleElement.textContent = cssStyles;
+        document.head.appendChild(styleElement);
+    }
+    
     async function processRequestQueue() {
         if (isProcessingQueue || requestQueue.length === 0) {
             return;
@@ -152,6 +164,9 @@
     }
     
     async function injectStreamCountIntoTrackList() {
+        // Ensure styles are injected into the page
+        injectStylesIfNeeded();
+        
         // Find all list items that are audio tracks
         const listItems = document.querySelectorAll('.listItem');
         
@@ -221,7 +236,7 @@
                     }
                     
                     // Check if we already added stream count
-                    if (mediaInfo.querySelector('.reviewer-stream-count')) {
+                    if (mediaInfo.querySelector('.reviewerStreamCount')) {
                         return;
                     }
                     
@@ -236,10 +251,7 @@
                     
                     // Create stream count element
                     const streamCountDiv = document.createElement('div');
-                    streamCountDiv.className = 'mediaInfoItem reviewer-stream-count';
-                    streamCountDiv.style.fontWeight = '500';
-                    streamCountDiv.style.minWidth = '512px';
-                    streamCountDiv.style.textAlign = 'left';
+                    streamCountDiv.className = 'reviewerStreamCount';
                     streamCountDiv.title = `${streamData.streamCount} Spotify streams`;
                     streamCountDiv.innerHTML = `${escapeHtml(streamData.streamCount)}`;
                     
