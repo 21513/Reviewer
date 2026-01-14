@@ -9,6 +9,9 @@
     // Cache for stream counts
     const streamCountCache = new Map();
     
+    // Cache for album total streams
+    const albumTotalCache = new Map();
+    
     // Track which albums are currently being processed
     const processingAlbums = new Set();
 
@@ -197,7 +200,9 @@
             return;
         }
         
-        // Process each track and add to queue
+        // Collect all tracks that need processing
+        const tracksToProcess = [];
+        
         for (const listItem of listItems) {
             // Skip if already processed
             if (listItem.dataset.reviewerProcessed === 'true') {
@@ -218,72 +223,84 @@
             // Mark as processed immediately to prevent duplicate processing
             listItem.dataset.reviewerProcessed = 'true';
             
-            // Add to request queue
-            requestQueue.push(async () => {
-                try {
-                    // Get track data
-                    const trackData = await apiClient.getItem(apiClient.getCurrentUserId(), itemId);
-                    
-                    if (!trackData) {
-                        return;
+            tracksToProcess.push({ listItem, itemId });
+        }
+        
+        // Process all tracks in parallel
+        const processPromises = tracksToProcess.map(async ({ listItem, itemId }) => {
+            try {
+                // Get track data
+                const trackData = await apiClient.getItem(apiClient.getCurrentUserId(), itemId);
+                
+                if (!trackData) {
+                    return;
+                }
+                
+                // Get album ID and Spotify ID if available, otherwise use track/artist name
+                const albumId = trackData.AlbumId || null;
+                const spotifyId = trackData.ProviderIds?.Spotify || null;
+                const trackName = trackData.Name || null;
+                const artistName = trackData.AlbumArtist || trackData.Artists?.[0] || null;
+                
+                if (!spotifyId && (!trackName || !artistName)) {
+                    return;
+                }
+                
+                // Fetch stream count (will use cache if available)
+                const streamData = await fetchStreamCount(albumId, itemId, spotifyId, trackName, artistName);
+                
+                if (!streamData) {
+                    return;
+                }
+                
+                // Find the title element and duration element
+                const listItemBody = listItem.querySelector('.listItemBody');
+                const mediaInfo = listItem.querySelector('.secondary.listItemMediaInfo');
+                
+                if (!mediaInfo || !listItemBody) {
+                    return;
+                }
+                
+                // Check if we already added stream count
+                if (listItem.querySelector('.reviewerStreamCount')) {
+                    return;
+                }
+                
+                // Create stream count element
+                const streamCountDiv = document.createElement('div');
+                streamCountDiv.className = 'reviewerStreamCount';
+                streamCountDiv.title = `${streamData.streamCount} Spotify streams`;
+                streamCountDiv.innerHTML = `${escapeHtml(streamData.streamCount)}`;
+                
+                // Check screen size to determine placement
+                const isSmallScreen = window.matchMedia('(max-width: 50em)').matches;
+                
+                if (isSmallScreen) {
+                    // On small screens, place below the title
+                    const titleDiv = listItemBody.querySelector('.listItemBodyText');
+                    if (titleDiv) {
+                        titleDiv.appendChild(streamCountDiv);
+                    } else {
+                        listItemBody.appendChild(streamCountDiv);
                     }
-                    
-                    // Get album ID and Spotify ID if available, otherwise use track/artist name
-                    const albumId = trackData.AlbumId || null;
-                    const spotifyId = trackData.ProviderIds?.Spotify || null;
-                    const trackName = trackData.Name || null;
-                    const artistName = trackData.AlbumArtist || trackData.Artists?.[0] || null;
-                    
-                    if (!spotifyId && (!trackName || !artistName)) {
-                        return;
-                    }
-                    
-                    // Fetch stream count
-                    const streamData = await fetchStreamCount(albumId, itemId, spotifyId, trackName, artistName);
-                    
-                    if (!streamData) {
-                        return;
-                    }
-                    
-                    // Find the title element and duration element
-                    const listItemBody = listItem.querySelector('.listItemBody');
-                    const mediaInfo = listItem.querySelector('.secondary.listItemMediaInfo');
-                    
-                    if (!mediaInfo || !listItemBody) {
-                        return;
-                    }
-                    
-                    // Check if we already added stream count
-                    if (mediaInfo.querySelector('.reviewerStreamCount')) {
-                        return;
-                    }
-                    
-                    // Don't shrink the title section - let it flex naturally
-                    // Instead, add stream count with controlled width
-                    
-                    // Set flex layout on parent
+                } else {
+                    // On larger screens, place in mediaInfo with flex layout
                     mediaInfo.style.display = 'flex';
                     mediaInfo.style.alignItems = 'center';
                     mediaInfo.style.gap = '15px';
                     mediaInfo.style.justifyContent = 'center';
                     
-                    // Create stream count element
-                    const streamCountDiv = document.createElement('div');
-                    streamCountDiv.className = 'reviewerStreamCount';
-                    streamCountDiv.title = `${streamData.streamCount} Spotify streams`;
-                    streamCountDiv.innerHTML = `${escapeHtml(streamData.streamCount)}`;
-                    
                     // Insert before the duration (first child)
                     mediaInfo.insertBefore(streamCountDiv, mediaInfo.firstChild);
-                    
-                } catch (error) {
-                    console.error('[Reviewer] Error processing track:', error);
                 }
-            });
-        }
+                
+            } catch (error) {
+                console.error('[Reviewer] Error processing track:', error);
+            }
+        });
         
-        // Start processing the queue
-        processRequestQueue();
+        // Wait for all tracks to be processed
+        await Promise.allSettled(processPromises);
     }
     
     function initializeReviewScrollButtons(container) {
@@ -632,17 +649,36 @@
             // Insert before genres group
             parentContainer.insertBefore(totalStreamsGroup, genresGroup);
             
-            // Fetch stream counts for all tracks
+            // Check if we have cached total for this album
+            if (albumTotalCache.has(itemId)) {
+                console.log('[Reviewer] Using cached album total');
+                const cachedTotal = albumTotalCache.get(itemId);
+                const totalStreamsContent = totalStreamsGroup.querySelector('.totalStreams.content');
+                if (totalStreamsContent) {
+                    if (cachedTotal.successCount > 0) {
+                        const formattedTotal = cachedTotal.totalStreams.toLocaleString();
+                        totalStreamsContent.innerHTML = `
+                            <span style="color: #fff; font-weight: 500; white-space: nowrap;">${escapeHtml(formattedTotal)}</span>
+                        `;
+                    } else {
+                        totalStreamsContent.innerHTML = `<span style="color: #999; white-space: nowrap;">No stream data available</span>`;
+                    }
+                }
+                return;
+            }
+            
+            // Fetch stream counts for all tracks in parallel
             let totalStreams = 0;
             let successCount = 0;
             
-            for (const track of result.Items) {
+            // Process all tracks in parallel
+            const streamPromises = result.Items.map(async (track) => {
                 const spotifyId = track.ProviderIds?.Spotify || null;
                 const trackName = track.Name || null;
                 const artistName = track.AlbumArtist || track.Artists?.[0] || null;
                 
                 if (!spotifyId && (!trackName || !artistName)) {
-                    continue;
+                    return null;
                 }
                 
                 const streamData = await fetchStreamCount(itemId, track.Id, spotifyId, trackName, artistName);
@@ -651,16 +687,28 @@
                     // Remove commas and convert to number
                     const count = parseInt(streamData.streamCount.replace(/,/g, ''), 10);
                     if (!isNaN(count)) {
-                        totalStreams += count;
-                        successCount++;
+                        return count;
                     }
                 }
                 
-                // Add delay to avoid overwhelming the API
-                await new Promise(resolve => setTimeout(resolve, 300));
+                return null;
+            });
+            
+            // Wait for all promises to resolve
+            const results = await Promise.allSettled(streamPromises);
+            
+            // Sum up all successful results
+            for (const result of results) {
+                if (result.status === 'fulfilled' && result.value !== null) {
+                    totalStreams += result.value;
+                    successCount++;
+                }
             }
             
             console.log(`[Reviewer] Total streams calculated: ${totalStreams} from ${successCount} tracks`);
+            
+            // Cache the album total
+            albumTotalCache.set(itemId, { totalStreams, successCount });
             
             // Update the display
             const totalStreamsContent = totalStreamsGroup.querySelector('.totalStreams.content');
@@ -669,7 +717,7 @@
                     // Format number with commas
                     const formattedTotal = totalStreams.toLocaleString();
                     totalStreamsContent.innerHTML = `
-                        <span style="color: #fff; font-weight: 500;">${escapeHtml(formattedTotal)}</span>
+                        <span style="color: #fff; font-weight: 500; white-space: nowrap;">${escapeHtml(formattedTotal)}</span>
                     `;
                 } else {
                     totalStreamsContent.innerHTML = `<span style="color: #999;">No stream data available</span>`;

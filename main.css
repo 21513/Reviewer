@@ -248,7 +248,12 @@
     }
 
     .reviewerStreamCount {
-        display: none;
+        position: static !important;
+        transform: none !important;
+        width: auto !important;
+        text-align: left !important;
+        color: #999;
+        margin-top: 2px;
     }
 }
 
