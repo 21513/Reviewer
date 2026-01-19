@@ -14,6 +14,9 @@
     
     // Track which albums are currently being processed
     const processingAlbums = new Set();
+    
+    // Track which artists are currently being processed
+    const processingArtists = new Set();
 
     function escapeHtml(text) {
         const div = document.createElement('div');
@@ -731,6 +734,225 @@
             processingAlbums.delete(itemId);
         }
     }
+
+    async function injectArtistTotalStreams() {
+        const isDetailPage = window.location.hash.includes('/details?id=');
+        if (!isDetailPage) return;
+
+        const urlParams = new URLSearchParams(window.location.hash.split('?')[1]);
+        const itemId = urlParams.get('id');
+        if (!itemId) return;
+
+        // Only run on MusicArtist pages
+        const artistData = await getMovieData(itemId);
+        if (!artistData || artistData.Type !== 'MusicArtist') {
+            return;
+        }
+
+        console.log('[Reviewer] injectArtistTotalStreams: Artist data:', artistData);
+
+        // Avoid duplicate processing
+        if (processingArtists.has(itemId)) return;
+
+        // Remove any existing total streams groups (from previous views)
+        const existingGroups = document.querySelectorAll('.detailsGroupItem.totalStreamsGroup');
+        for (const g of existingGroups) {
+            if (g.dataset.itemId === itemId) return;
+            g.remove();
+        }
+
+        processingArtists.add(itemId);
+
+        const apiClient = window.ApiClient;
+        if (!apiClient) return;
+
+        try {
+            // Get all albums for this artist (query by AlbumArtistIds)
+            const albumsResult = await apiClient.getItems(apiClient.getCurrentUserId(), {
+                includeItemTypes: 'MusicAlbum',
+                recursive: true,
+                AlbumArtistIds: itemId,
+                Limit: 100,
+                StartIndex: 0
+            });
+
+            if (!albumsResult || !albumsResult.Items || albumsResult.Items.length === 0) {
+                console.log('[Reviewer] No albums found for artist', itemId);
+                return;
+            }
+
+            // Prefer inserting into the same details groups container as albums (before genresGroup)
+            let totalGroup = null;
+            let targetContainer = null;
+            let insertPosition = null;
+
+            const genresGroup = document.querySelector('.detailsGroupItem.genresGroup');
+            if (genresGroup && genresGroup.parentElement) {
+                targetContainer = genresGroup.parentElement;
+                insertPosition = genresGroup;
+                totalGroup = document.createElement('div');
+                totalGroup.className = 'detailsGroupItem totalStreamsGroup';
+                totalGroup.dataset.itemId = itemId;
+                totalGroup.innerHTML = `
+                    <div class="totalStreamsLabel label">Total Streams</div>
+                    <div class="totalStreams content">
+                        <span style="font-size: 0.9em;">Calculating...</span>
+                    </div>
+                `;
+                targetContainer.insertBefore(totalGroup, insertPosition);
+            } else {
+                // Fallback to previous insertion logic
+                const castSection = document.querySelector('#castCollapsible');
+                const detailWrapper = document.querySelector('.detailPageWrapperContainer');
+                const detailPrimary = document.querySelector('.detailPagePrimaryContent');
+                const detailRibbon = document.querySelector('.detailRibbon');
+
+                if (castSection && castSection.parentElement) {
+                    targetContainer = castSection.parentElement;
+                    insertPosition = castSection;
+                } else if (detailPrimary) {
+                    targetContainer = detailPrimary;
+                    insertPosition = detailPrimary.firstChild;
+                } else if (detailRibbon && detailRibbon.parentElement) {
+                    targetContainer = detailRibbon.parentElement;
+                    insertPosition = detailRibbon.nextSibling;
+                } else if (detailWrapper) {
+                    targetContainer = detailWrapper;
+                    insertPosition = detailWrapper.firstChild;
+                } else {
+                    const groupsContainer = document.querySelector('.detailsGroups');
+                    if (groupsContainer) {
+                        targetContainer = groupsContainer;
+                        insertPosition = groupsContainer.firstChild;
+                    }
+                }
+
+                totalGroup = document.createElement('div');
+                totalGroup.className = 'detailsGroupItem totalStreamsGroup';
+                totalGroup.dataset.itemId = itemId;
+                totalGroup.innerHTML = `
+                    <div class="totalStreamsLabel label">Total Streams</div>
+                    <div class="totalStreams content">
+                        <span style="font-size: 0.9em;">Calculating...</span>
+                    </div>
+                `;
+
+                if (targetContainer && insertPosition) {
+                    targetContainer.insertBefore(totalGroup, insertPosition);
+                } else if (targetContainer) {
+                    targetContainer.appendChild(totalGroup);
+                } else {
+                    console.log('[Reviewer] Failed to find insertion point for artist total streams');
+                }
+            }
+
+            let artistTotal = 0;
+            let artistSuccessCount = 0;
+
+            // For each album, use cached album totals if available, otherwise calculate
+            const albumPromises = albumsResult.Items.map(async (album) => {
+                if (!album || !album.Id) return 0;
+
+                // Use cached album total if present
+                if (albumTotalCache.has(album.Id)) {
+                    const cached = albumTotalCache.get(album.Id);
+                    if (cached && cached.successCount > 0) {
+                        console.log('[Reviewer] Using cached album total for', album.Name, album.Id, cached.totalStreams);
+                        return cached.totalStreams;
+                    }
+                    return 0;
+                }
+
+                // Fetch tracks for the album and compute total similarly to injectAlbumTotalStreams
+                try {
+                    const tracksResult = await apiClient.getItems(apiClient.getCurrentUserId(), {
+                        parentId: album.Id,
+                        includeItemTypes: 'Audio',
+                        sortBy: 'IndexNumber',
+                        recursive: false
+                    });
+
+                    if (!tracksResult || !tracksResult.Items || tracksResult.Items.length === 0) {
+                        // cache empty result to avoid re-query
+                        albumTotalCache.set(album.Id, { totalStreams: 0, successCount: 0 });
+                        return 0;
+                    }
+
+                    const trackPromises = tracksResult.Items.map(async (track) => {
+                        const spotifyId = track.ProviderIds?.Spotify || null;
+                        const trackName = track.Name || null;
+                        const artistName = track.AlbumArtist || track.Artists?.[0] || null;
+
+                        if (!spotifyId && (!trackName || !artistName)) return null;
+
+                        const streamData = await fetchStreamCount(album.Id, track.Id, spotifyId, trackName, artistName);
+                        if (streamData && streamData.streamCount) {
+                            const count = parseInt(streamData.streamCount.replace(/,/g, ''), 10);
+                            if (!isNaN(count)) return count;
+                        }
+                        return null;
+                    });
+
+                    const trackResults = await Promise.allSettled(trackPromises);
+                    let albumTotal = 0;
+                    let successCount = 0;
+                    for (const r of trackResults) {
+                        if (r.status === 'fulfilled' && r.value !== null) {
+                            albumTotal += r.value;
+                            successCount++;
+                        }
+                    }
+
+                    albumTotalCache.set(album.Id, { totalStreams: albumTotal, successCount });
+                    return albumTotal;
+                } catch (e) {
+                    console.error('[Reviewer] Error fetching tracks for album', album.Id, e);
+                    return 0;
+                }
+            });
+
+            const albumResults = await Promise.allSettled(albumPromises);
+            for (const ar of albumResults) {
+                if (ar.status === 'fulfilled' && typeof ar.value === 'number' && ar.value > 0) {
+                    artistTotal += ar.value;
+                    artistSuccessCount++;
+                }
+            }
+
+            console.log('[Reviewer] Artist total streams calculated:', artistTotal, 'from', artistSuccessCount, 'albums');
+
+            // Ensure the injected element is still in the DOM (Jellyfin may re-render)
+            if (!totalGroup || !document.body.contains(totalGroup)) {
+                const existing = document.querySelector(`.detailsGroupItem.totalStreamsGroup[data-item-id="${itemId}"]`);
+                if (existing) {
+                    totalGroup = existing;
+                } else if (targetContainer && insertPosition) {
+                    targetContainer.insertBefore(totalGroup, insertPosition);
+                } else if (targetContainer) {
+                    targetContainer.appendChild(totalGroup);
+                } else {
+                    // last ditch: insert into .detailsGroups if available
+                    const groupsContainer = document.querySelector('.detailsGroups');
+                    if (groupsContainer) groupsContainer.insertBefore(totalGroup, groupsContainer.firstChild);
+                }
+            }
+
+            // Update UI
+            const totalContent = totalGroup.querySelector('.totalStreams.content');
+            if (totalContent) {
+                if (artistTotal > 0) {
+                    totalContent.innerHTML = `<span style="font-weight: 500; white-space: nowrap;">${escapeHtml(artistTotal.toLocaleString())}</span>`;
+                } else {
+                    totalContent.innerHTML = `<span style="white-space: nowrap;">No stream data available</span>`;
+                }
+            }
+
+        } catch (error) {
+            console.error('[Reviewer] Error calculating artist total streams:', error);
+        } finally {
+            processingArtists.delete(itemId);
+        }
+    }
     
     async function injectOnMusicPage() {
         const isDetailPage = window.location.hash.includes('/details?id=');
@@ -843,6 +1065,7 @@
         setTimeout(injectOnMoviePage, 200);
         setTimeout(injectOnMusicPage, 200);
         setTimeout(injectAlbumTotalStreams, 200);
+        setTimeout(injectArtistTotalStreams, 200);
         setTimeout(injectStreamCountIntoTrackList, 500);
     });
     
@@ -850,6 +1073,7 @@
         setTimeout(injectOnMoviePage, 200);
         setTimeout(injectOnMusicPage, 200);
         setTimeout(injectAlbumTotalStreams, 200);
+        setTimeout(injectArtistTotalStreams, 200);
         setTimeout(injectStreamCountIntoTrackList, 500);
     });
     
@@ -858,12 +1082,14 @@
             injectOnMoviePage();
             injectOnMusicPage();
             injectAlbumTotalStreams();
+            injectArtistTotalStreams();
             setTimeout(injectStreamCountIntoTrackList, 500);
         });
     } else {
         setTimeout(injectOnMoviePage, 500);
         setTimeout(injectOnMusicPage, 500);
         setTimeout(injectAlbumTotalStreams, 500);
+        setTimeout(injectArtistTotalStreams, 500);
         setTimeout(injectStreamCountIntoTrackList, 800);
     }
     
@@ -871,6 +1097,7 @@
         setTimeout(injectOnMoviePage, 500);
         setTimeout(injectOnMusicPage, 500);
         setTimeout(injectAlbumTotalStreams, 500);
+        setTimeout(injectArtistTotalStreams, 500);
         setTimeout(injectStreamCountIntoTrackList, 800);
     });
     
