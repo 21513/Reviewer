@@ -13,8 +13,8 @@
                 "changelog": "Improved load times; Minor bug fixes; Added total streams for artists",
                 "targetAbi": "10.11.4.0",
                 "sourceUrl": "https://github.com/21513/Reviewer/releases/download/v0.0.2.2/Reviewer-v0.0.2.2.zip",
-                "checksum": "6f9f6d06e0e8500791f818fceeb92f36",
-                "timestamp": "2026-01-14T19:03:21Z"
+                "checksum": "1125960dcec3b8a35805ce1f2e62457f",
+                "timestamp": "2026-01-19T21:48:33Z"
             },
             {
                 "version": "0.0.2.1",
