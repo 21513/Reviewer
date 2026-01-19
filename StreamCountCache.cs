@@ -59,11 +59,23 @@ public class StreamCountCache
         if (_cache.TryGetValue(albumId, out var albumCache) && 
             albumCache.TryGetValue(trackId, out var cacheEntry))
         {
+            // Validate cached data
+            if (string.IsNullOrEmpty(cacheEntry.StreamCount))
+            {
+                albumCache.Remove(trackId);
+                return null;
+            }
+            
             // Check if cache is older than 7 days (stream counts change frequently)
             if ((DateTime.UtcNow - cacheEntry.CachedAt).TotalDays <= 7)
             {
                 // Reconstruct the response string
                 return $"{cacheEntry.StreamCount}";
+            }
+            else
+            {
+                // Remove stale cache entry
+                albumCache.Remove(trackId);
             }
         }
         return null;

@@ -58,13 +58,31 @@ public class ReviewCache
     {
         if (_cache.TryGetValue(imdbId, out var cacheEntry))
         {
+            // Validate cached data
+            if (cacheEntry.Reviews == null || cacheEntry.Reviews.Count == 0)
+            {
+                _cache.Remove(imdbId);
+                return null;
+            }
+            
             // Cache is persistent - no expiration check
             // Reconstruct the response string from individual reviews
             var reviewStrings = new List<string>();
             foreach (var (author, reviewData) in cacheEntry.Reviews)
             {
-                reviewStrings.Add($"{author}|||{reviewData.Rating}|||{reviewData.Content}");
+                // Validate each review entry
+                if (reviewData != null && !string.IsNullOrEmpty(reviewData.Content))
+                {
+                    reviewStrings.Add($"{author}|||{reviewData.Rating}|||{reviewData.Content}");
+                }
             }
+            
+            if (reviewStrings.Count == 0)
+            {
+                _cache.Remove(imdbId);
+                return null;
+            }
+            
             return string.Join("@@@", reviewStrings);
         }
         return null;

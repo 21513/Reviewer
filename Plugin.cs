@@ -37,7 +37,7 @@ public class Plugin : BasePlugin<PluginConfiguration>
         _reviewCache = new ReviewCache(DataFolderPath);
         _streamCountCache = new StreamCountCache(DataFolderPath);
         
-        _logger.LogInformation("🎬 Reviewer Plugin: Starting initialization...");
+        _logger.LogInformation("Reviewer Plugin: Starting initialization...");
         
         // Create web injection script
         _ = Task.Run(async () => await InitializePluginAsync(applicationPaths));
@@ -154,7 +154,6 @@ public class Plugin : BasePlugin<PluginConfiguration>
         {
             if (string.IsNullOrEmpty(imdbId) || !ImdbIdValidation.IsMatch(imdbId))
             {
-                System.Diagnostics.Debug.WriteLine($"[Reviewer] Invalid IMDb ID format: {imdbId}");
                 return null;
             }
             
@@ -170,6 +169,7 @@ public class Plugin : BasePlugin<PluginConfiguration>
             using var httpClient = new HttpClient();
             httpClient.Timeout = TimeSpan.FromSeconds(8);
             httpClient.DefaultRequestHeaders.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36");
+            httpClient.MaxResponseContentBufferSize = 10 * 1024 * 1024; // 10MB limit
             
             var url = $"https://www.imdb.com/title/{imdbId}/reviews";
             
@@ -180,17 +180,24 @@ public class Plugin : BasePlugin<PluginConfiguration>
                 return null;
             }
             
+            // Check content length before reading
+            if (response.Content.Headers.ContentLength > 10 * 1024 * 1024)
+            {
+                return null;
+            }
+            
             var html = await response.Content.ReadAsStringAsync();
-            var reviewsArrayMatch = Regex.Match(html, @"""reviews""\s*:\s*\[(.*?)\]", RegexOptions.Singleline);
+            var timeout = TimeSpan.FromSeconds(2);
+            var reviewsArrayMatch = Regex.Match(html, @"""reviews""\s*:\s*\[(.*?)\]", RegexOptions.Singleline, timeout);
             
             if (reviewsArrayMatch.Success)
             {
                 var reviewsJson = reviewsArrayMatch.Groups[1].Value;
                 
                 // Extract up to 7 reviews
-                var reviewMatches = Regex.Matches(reviewsJson, @"""reviewText""\s*:\s*""([^""]{50,}[^""]*)""", RegexOptions.Singleline);
-                var authorMatches = Regex.Matches(reviewsJson, @"""author""\s*:\s*\{[^\}]*""username""\s*:\s*\{[^\}]*""text""\s*:\s*""([^""]+)""", RegexOptions.Singleline);
-                var ratingMatches = Regex.Matches(reviewsJson, @"""authorRating""\s*:\s*(\d+)", RegexOptions.Singleline);
+                var reviewMatches = Regex.Matches(reviewsJson, @"""reviewText""\s*:\s*""([^""]{50,}[^""]*)""", RegexOptions.Singleline, timeout);
+                var authorMatches = Regex.Matches(reviewsJson, @"""author""\s*:\s*\{[^\}]*""username""\s*:\s*\{[^\}]*""text""\s*:\s*""([^""]+)""", RegexOptions.Singleline, timeout);
+                var ratingMatches = Regex.Matches(reviewsJson, @"""authorRating""\s*:\s*(\d+)", RegexOptions.Singleline, timeout);
                 
                 var reviewsList = new List<string>();
                 var reviewCount = Math.Min(7, reviewMatches.Count);
@@ -202,9 +209,11 @@ public class Plugin : BasePlugin<PluginConfiguration>
                     var rating = i < ratingMatches.Count ? ratingMatches[i].Groups[1].Value : "";
 
                     reviewText = System.Text.RegularExpressions.Regex.Replace(reviewText, @"\\u([0-9a-fA-F]{4})", 
-                        m => ((char)int.Parse(m.Groups[1].Value, System.Globalization.NumberStyles.HexNumber)).ToString());
+                        m => ((char)int.Parse(m.Groups[1].Value, System.Globalization.NumberStyles.HexNumber)).ToString(),
+                        RegexOptions.None, TimeSpan.FromSeconds(1));
                     author = System.Text.RegularExpressions.Regex.Replace(author, @"\\u([0-9a-fA-F]{4})", 
-                        m => ((char)int.Parse(m.Groups[1].Value, System.Globalization.NumberStyles.HexNumber)).ToString());
+                        m => ((char)int.Parse(m.Groups[1].Value, System.Globalization.NumberStyles.HexNumber)).ToString(),
+                        RegexOptions.None, TimeSpan.FromSeconds(1));
 
                     reviewText = reviewText.Replace("\\n", "\n")
                                            .Replace("\\r", "")
@@ -239,11 +248,11 @@ public class Plugin : BasePlugin<PluginConfiguration>
             }
 
             
-            var matches = Regex.Matches(html, @"<div[^>]*reviewText[^>]*>(.*?)</div>", RegexOptions.Singleline | RegexOptions.IgnoreCase);
+            var matches = Regex.Matches(html, @"<div[^>]*reviewText[^>]*>(.*?)</div>", RegexOptions.Singleline | RegexOptions.IgnoreCase, timeout);
             
             if (matches.Count == 0)
             {
-                matches = Regex.Matches(html, @"<div[^>]*class=""[^""]*content[^""]*""[^>]*>(.*?)</div>", RegexOptions.Singleline | RegexOptions.IgnoreCase);
+                matches = Regex.Matches(html, @"<div[^>]*class=""[^""]*content[^""]*""[^>]*>(.*?)</div>", RegexOptions.Singleline | RegexOptions.IgnoreCase, timeout);
             }
             
             if (matches.Count > 0)
@@ -256,7 +265,7 @@ public class Plugin : BasePlugin<PluginConfiguration>
                 {
                     var reviewHtml = bestMatch.Groups[1].Value;
                     
-                    var reviewText = Regex.Replace(reviewHtml, "<.*?>", string.Empty);
+                    var reviewText = Regex.Replace(reviewHtml, "<.*?>", string.Empty, RegexOptions.None, timeout);
                     reviewText = System.Net.WebUtility.HtmlDecode(reviewText).Trim();
 
                     if (reviewText.Length < 50)
@@ -264,7 +273,7 @@ public class Plugin : BasePlugin<PluginConfiguration>
                         return null;
                     }
                     
-                    var authorMatch = Regex.Match(html, @"<span class=""display-name-link""><a[^>]*>(.*?)</a>");
+                    var authorMatch = Regex.Match(html, @"<span class=""display-name-link""><a[^>]*>(.*?)</a>", RegexOptions.None, timeout);
                     var author = authorMatch.Success ? System.Net.WebUtility.HtmlDecode(authorMatch.Groups[1].Value) : "Anonymous";
                     
                     var result = $"{author}||||||{reviewText}";
@@ -272,7 +281,6 @@ public class Plugin : BasePlugin<PluginConfiguration>
                     if (_reviewCache != null)
                     {
                         await _reviewCache.Set(imdbId, result);
-                        System.Diagnostics.Debug.WriteLine($"[Reviewer] Cached review for: {imdbId}");
                     }
                     
                     return result;
@@ -283,10 +291,8 @@ public class Plugin : BasePlugin<PluginConfiguration>
             
             return null;
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            System.Diagnostics.Debug.WriteLine($"[Reviewer] Exception: {ex.Message}");
-            System.Diagnostics.Debug.WriteLine($"[Reviewer] Stack trace: {ex.StackTrace}");
             return null;
         }
     }
@@ -295,9 +301,11 @@ public class Plugin : BasePlugin<PluginConfiguration>
     {
         try
         {
+            var timeout = TimeSpan.FromSeconds(2);
             using var handler = new HttpClientHandler { UseCookies = true, CookieContainer = new System.Net.CookieContainer() };
             using var httpClient = new HttpClient(handler);
             httpClient.Timeout = TimeSpan.FromSeconds(10);
+            httpClient.MaxResponseContentBufferSize = 5 * 1024 * 1024; // 5MB limit
             httpClient.DefaultRequestHeaders.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36");
             
             string? html = null;
@@ -334,16 +342,14 @@ public class Plugin : BasePlugin<PluginConfiguration>
                 var homeResponse = await httpClient.GetAsync("https://www.mystreamcount.com/");
                 if (!homeResponse.IsSuccessStatusCode)
                 {
-                    System.Diagnostics.Debug.WriteLine($"[Reviewer] Failed to fetch home page: {homeResponse.StatusCode}");
                     return null;
                 }
                 
                 var homeHtml = await homeResponse.Content.ReadAsStringAsync();
-                var csrfMatch = Regex.Match(homeHtml, @"<meta\s+name=""csrf-token""\s+content=""([^""]+)""");
+                var csrfMatch = Regex.Match(homeHtml, @"<meta\s+name=""csrf-token""\s+content=""([^""]+)""", RegexOptions.None, timeout);
                 
                 if (!csrfMatch.Success)
                 {
-                    System.Diagnostics.Debug.WriteLine($"[Reviewer] Could not find CSRF token");
                     return null;
                 }
                 
@@ -371,12 +377,11 @@ public class Plugin : BasePlugin<PluginConfiguration>
                     if (html.Contains("Found") && html.Contains("results"))
                     {
                         // Extract the first track link and fetch that page
-                        var trackLinkMatch = Regex.Match(html, @"<a\s+href=""(https://www\.mystreamcount\.com/track/[a-zA-Z0-9]{22})""", RegexOptions.IgnoreCase);
+                        var trackLinkMatch = Regex.Match(html, @"<a\s+href=""(https://www\.mystreamcount\.com/track/[a-zA-Z0-9]{22})""", RegexOptions.IgnoreCase, timeout);
                         
                         if (trackLinkMatch.Success)
                         {
                             var trackUrl = trackLinkMatch.Groups[1].Value;
-                            System.Diagnostics.Debug.WriteLine($"[Reviewer] Following first search result: {trackUrl}");
                             
                             var trackResponse = await httpClient.GetAsync(trackUrl);
                             if (trackResponse.IsSuccessStatusCode)
@@ -386,7 +391,6 @@ public class Plugin : BasePlugin<PluginConfiguration>
                         }
                         else
                         {
-                            System.Diagnostics.Debug.WriteLine($"[Reviewer] No results found for '{trackName}' by '{artistName}'");
                             return null;
                         }
                     }
@@ -395,7 +399,6 @@ public class Plugin : BasePlugin<PluginConfiguration>
             }
             else
             {
-                System.Diagnostics.Debug.WriteLine($"[Reviewer] Invalid parameters: need either Spotify ID or track name + artist name");
                 return null;
             }
             
@@ -406,12 +409,12 @@ public class Plugin : BasePlugin<PluginConfiguration>
             
             // Extract stream count from the page
             // Pattern: <p class="text-3xl lg:text-4xl font-extrabold text-spotify-green stat-number">179,294,281</p>
-            var streamCountMatch = Regex.Match(html, @"<p[^>]*class=""[^""]*stat-number[^""]*""[^>]*>\s*([\d,]+)\s*</p>", RegexOptions.IgnoreCase);
+            var streamCountMatch = Regex.Match(html, @"<p[^>]*class=""[^""]*stat-number[^""]*""[^>]*>\s*([\d,]+)\s*</p>", RegexOptions.IgnoreCase, timeout);
             
             if (!streamCountMatch.Success)
             {
                 // Fallback to old pattern
-                streamCountMatch = Regex.Match(html, @"TOTAL\s+STREAMS[\s\S]*?([\d,]+)", RegexOptions.IgnoreCase);
+                streamCountMatch = Regex.Match(html, @"TOTAL\s+STREAMS[\s\S]*?([\d,]+)", RegexOptions.IgnoreCase, timeout);
             }
             
             if (streamCountMatch.Success)
@@ -419,9 +422,9 @@ public class Plugin : BasePlugin<PluginConfiguration>
                 var streamCount = streamCountMatch.Groups[1].Value;
                 
                 // Extract track name and artist
-                var titleMatch = Regex.Match(html, @"<h1[^>]*>([^<]+)</h1>");
-                var artistMatch = Regex.Match(html, @"<a[^>]*href=""/artist/[^""]+""[^>]*>([^<]+)</a>");
-                var releaseDateMatch = Regex.Match(html, @"Released\s+([^<]+)");
+                var titleMatch = Regex.Match(html, @"<h1[^>]*>([^<]+)</h1>", RegexOptions.None, timeout);
+                var artistMatch = Regex.Match(html, @"<a[^>]*href=""/artist/[^""]+""[^>]*>([^<]+)</a>", RegexOptions.None, timeout);
+                var releaseDateMatch = Regex.Match(html, @"Released\s+([^<]+)", RegexOptions.None, timeout);
                 
                 var parsedTrackName = titleMatch.Success ? System.Net.WebUtility.HtmlDecode(titleMatch.Groups[1].Value.Trim()) : (trackName ?? "Unknown Track");
                 var parsedArtistName = artistMatch.Success ? System.Net.WebUtility.HtmlDecode(artistMatch.Groups[1].Value.Trim()) : (artistName ?? "Unknown Artist");
@@ -435,16 +438,13 @@ public class Plugin : BasePlugin<PluginConfiguration>
                     await _streamCountCache.Set(effectiveAlbumId, effectiveTrackId, result);
                 }
                 
-                System.Diagnostics.Debug.WriteLine($"[Reviewer] Found stream count: {streamCount} for '{parsedTrackName}' by '{parsedArtistName}'");
                 return result;
             }
             
-            System.Diagnostics.Debug.WriteLine($"[Reviewer] Could not extract stream count from page");
             return null;
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            System.Diagnostics.Debug.WriteLine($"[Reviewer] Exception scraping stream count: {ex.Message}");
             return null;
         }
     }

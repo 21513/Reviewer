@@ -19,17 +19,27 @@
     const processingArtists = new Set();
 
     function escapeHtml(text) {
+        if (!text) return '';
         const div = document.createElement('div');
         div.textContent = text;
         return div.innerHTML;
     }
 
     function sanitizeAndFormatContent(text) {
+        if (!text) return '';
+        // First, escape all HTML
         let sanitized = escapeHtml(text);
-
+        // Only allow line breaks - replace escaped <br> tags and newlines
         sanitized = sanitized.replace(/&lt;br\s*\/?&gt;/gi, '<br>');
         sanitized = sanitized.replace(/\n/g, '<br>');
+        // Remove any other HTML-like patterns that might have slipped through
+        sanitized = sanitized.replace(/&lt;\/?[a-z][^&]*&gt;/gi, '');
         return sanitized;
+    }
+    
+    // Validate that data is from authenticated session
+    function isAuthenticated() {
+        return window.ApiClient && window.ApiClient.getCurrentUserId && window.ApiClient.getCurrentUserId();
     }
     
     async function getMovieData(itemId) {
@@ -48,19 +58,19 @@
     
     async function fetchImdbReview(imdbId) {
         try {
-            console.log('[Reviewer] Fetching IMDb review for:', imdbId);
+            if (!isAuthenticated()) {
+                console.error('[Reviewer] Not authenticated');
+                return null;
+            }
             
             const apiClient = window.ApiClient;
-            const url = `Reviewer/GetReview?imdbId=${imdbId}`;
+            const url = `Reviewer/GetReview?imdbId=${encodeURIComponent(imdbId)}`;
 
             const reviewData = await apiClient.ajax({
                 type: 'GET',
                 url: apiClient.getUrl(url),
                 dataType: 'text'
             });
-            
-            console.log('[Reviewer] Response received');
-            console.log('[Reviewer] Review data received, length:', reviewData.length);
             
             if (reviewData) {
                 const reviewBlocks = reviewData.split('@@@');
@@ -87,14 +97,16 @@
     
     async function fetchStreamCount(albumId, trackId, spotifyId, trackName, artistName) {
         try {
+            if (!isAuthenticated()) {
+                console.error('[Reviewer] Not authenticated');
+                return null;
+            }
+            
             // Check cache first
             const cacheKey = `${albumId || ''}_${trackId || ''}_${spotifyId || ''}_${trackName || ''}_${artistName || ''}`;
             if (streamCountCache.has(cacheKey)) {
-                console.log('[Reviewer] Using cached stream count for track:', trackName);
                 return streamCountCache.get(cacheKey);
             }
-            
-            console.log('[Reviewer] Fetching stream count - Album ID:', albumId, 'Track ID:', trackId, 'Spotify ID:', spotifyId, 'Track:', trackName, 'Artist:', artistName);
             
             const apiClient = window.ApiClient;
             
@@ -125,8 +137,6 @@
                 url: apiClient.getUrl(url),
                 dataType: 'text'
             });
-            
-            console.log('[Reviewer] Stream data received:', streamData);
             
             if (streamData) {
                 const parts = streamData.split('|||');
@@ -273,7 +283,7 @@
                 const streamCountDiv = document.createElement('div');
                 streamCountDiv.className = 'reviewerStreamCount';
                 streamCountDiv.title = `${streamData.streamCount} Spotify streams`;
-                streamCountDiv.innerHTML = `${escapeHtml(streamData.streamCount)}`;
+                streamCountDiv.textContent = streamData.streamCount;
                 
                 // Check screen size to determine placement
                 const isSmallScreen = window.matchMedia('(max-width: 50em)').matches;
@@ -304,6 +314,67 @@
         
         // Wait for all tracks to be processed
         await Promise.allSettled(processPromises);
+    }
+
+    // Helper: find or create a `.detailsGroupItem.totalStreamsGroup` for an itemId.
+    function getOrCreateTotalGroup(itemId) {
+        // prefer existing
+        let group = document.querySelector(`.detailsGroupItem.totalStreamsGroup[data-item-id="${itemId}"]`);
+        if (group) return group;
+
+        const genresGroup = document.querySelector('.detailsGroupItem.genresGroup');
+        if (genresGroup && genresGroup.parentElement) {
+            const parent = genresGroup.parentElement;
+            group = document.createElement('div');
+            group.className = 'detailsGroupItem totalStreamsGroup';
+            group.dataset.itemId = itemId;
+            group.innerHTML = `
+                <div class="totalStreamsLabel label">Total Streams</div>
+                <div class="totalStreams content">
+                    <span style="font-size: 0.9em;">Calculating...</span>
+                </div>
+            `;
+            parent.insertBefore(group, genresGroup);
+            return group;
+        }
+
+        // fallback: insert into .detailsGroups or detailPrimary
+        const groupsContainer = document.querySelector('.detailsGroups');
+        if (groupsContainer) {
+            group = document.createElement('div');
+            group.className = 'detailsGroupItem totalStreamsGroup';
+            group.dataset.itemId = itemId;
+            group.innerHTML = `
+                <div class="totalStreamsLabel label">Total Streams</div>
+                <div class="totalStreams content">
+                    <span style="font-size: 0.9em;">Calculating...</span>
+                </div>
+            `;
+            groupsContainer.insertBefore(group, groupsContainer.firstChild);
+            return group;
+        }
+
+        return null;
+    }
+
+    // Helper: update total group with a formatted number, retrying briefly if Jellyfin re-renders.
+    async function updateTotalGroupWithRetry(itemId, formattedText) {
+        const maxAttempts = 6;
+        for (let attempt = 0; attempt < maxAttempts; attempt++) {
+            let group = document.querySelector(`.detailsGroupItem.totalStreamsGroup[data-item-id="${itemId}"]`);
+            if (!group) group = getOrCreateTotalGroup(itemId);
+            if (group) {
+                const content = group.querySelector('.totalStreams.content');
+                if (content) {
+                    content.innerHTML = formattedText;
+                    return true;
+                }
+            }
+            // wait and retry
+            await new Promise(r => setTimeout(r, 200));
+        }
+        console.warn('[Reviewer] Failed to inject total streams group for', itemId);
+        return false;
     }
     
     function initializeReviewScrollButtons(container) {
@@ -391,15 +462,12 @@
             if (detailPrimary) {
                 targetContainer = detailPrimary;
                 insertPosition = detailPrimary.firstChild;
-                console.log('📍 Found detailPagePrimaryContent (fallback)');
             } else if (detailRibbon && detailRibbon.parentElement) {
                 targetContainer = detailRibbon.parentElement;
                 insertPosition = detailRibbon.nextSibling;
-                console.log('📍 Found detailRibbon (fallback)');
             } else if (detailWrapper) {
                 targetContainer = detailWrapper;
                 insertPosition = detailWrapper.firstChild;
-                console.log('📍 Found detailWrapper (fallback)');
             }
         }
         
@@ -418,23 +486,19 @@
             reviewerDiv.innerHTML = `<style>${cssStyles}</style><div style="padding: 20px; text-align: center; color: #aaa;">Loading IMDb reviews...</div>`;
             
             const movieData = await getMovieData(itemId);
-            console.log('[Reviewer] Movie data:', movieData);
             
             // Only show reviews for movies and TV shows (Series, Season, Episode)
             const allowedTypes = ['Movie', 'Series', 'Season', 'Episode'];
             if (!movieData || !allowedTypes.includes(movieData.Type)) {
-                console.log('[Reviewer] Item type not supported:', movieData?.Type);
                 reviewerDiv.remove();
                 return;
             }
             
             if (movieData && movieData.ProviderIds && movieData.ProviderIds.Imdb) {
                 const imdbId = movieData.ProviderIds.Imdb;
-                console.log('[Reviewer] IMDb ID:', imdbId);
                 
                 const reviews = await fetchImdbReview(imdbId);
                 if (reviews && reviews.length > 0) {
-                    console.log('[Reviewer] Successfully loaded', reviews.length, 'reviews');
                     
                     let reviewsHtml = `
                             <div class="reviewsSource">
@@ -453,38 +517,96 @@
                             <div class="reviewsContainer">
                         `;
                     
+                    const reviewsContainerDiv = document.createElement('div');
+                    
                     reviews.forEach((review, index) => {
-                        const escapedAuthor = escapeHtml(review.author);
-                        const escapedRating = escapeHtml(review.rating);
-                        const escapedContent = sanitizeAndFormatContent(review.content);
-                        const ratingText = review.rating ? `<span>${escapedRating}/10</span>`: '';
                         const reviewId = `${itemId}-${index}`;
                         
-                        reviewsHtml += `
-                            <div class="reviewContainer" style="margin-bottom: 20px; padding-bottom: 20px; border-bottom: 1px solid #333;">
-                                <div class="reviewDetails">
-                                    <div style="margin-bottom: 4px; color: #aaa; font-size: 14px;">
-                                        by <strong>${escapedAuthor}</strong>
-                                    </div>
-                                    <div style="margin-bottom: 4px;">
-                                        <span class="material-icons starIcon star" aria-hidden="true"></span>
-                                        ${ratingText}
-                                    </div>
-                                </div>
-                                <div id="review-container-${reviewId}" style="position: relative;">
-                                    <div class="reviewTextTruncated" id="review-text-${reviewId}">
-                                        ${escapedContent}
-                                    </div>
-                                    <div class="readMoreContainer">
-                                        <button id="review-toggle-${reviewId}" class="readMoreButton" style="display: none;">Read more...</button>
-                                    </div>
-                                </div>
-                            </div>
-                        `;
+                        // Create review container with safe DOM methods
+                        const reviewContainer = document.createElement('div');
+                        reviewContainer.className = 'reviewContainer';
+                        reviewContainer.style.cssText = 'margin-bottom: 20px; padding-bottom: 20px; border-bottom: 1px solid #333;';
+                        
+                        // Create review details header
+                        const reviewDetails = document.createElement('div');
+                        reviewDetails.className = 'reviewDetails';
+                        
+                        const authorDiv = document.createElement('div');
+                        authorDiv.style.cssText = 'margin-bottom: 4px; color: #aaa; font-size: 14px;';
+                        authorDiv.textContent = 'by ';
+                        const authorStrong = document.createElement('strong');
+                        authorStrong.textContent = review.author || 'Anonymous';
+                        authorDiv.appendChild(authorStrong);
+                        
+                        const ratingDiv = document.createElement('div');
+                        ratingDiv.style.cssText = 'margin-bottom: 4px;';
+                        const starSpan = document.createElement('span');
+                        starSpan.className = 'material-icons starIcon star';
+                        starSpan.setAttribute('aria-hidden', 'true');
+                        ratingDiv.appendChild(starSpan);
+                        if (review.rating) {
+                            const ratingSpan = document.createElement('span');
+                            ratingSpan.textContent = `${review.rating}/10`;
+                            ratingDiv.appendChild(ratingSpan);
+                        }
+                        
+                        reviewDetails.appendChild(authorDiv);
+                        reviewDetails.appendChild(ratingDiv);
+                        
+                        // Create review content
+                        const reviewContentContainer = document.createElement('div');
+                        reviewContentContainer.id = `review-container-${reviewId}`;
+                        reviewContentContainer.style.position = 'relative';
+                        
+                        const reviewTextDiv = document.createElement('div');
+                        reviewTextDiv.className = 'reviewTextTruncated';
+                        reviewTextDiv.id = `review-text-${reviewId}`;
+                        reviewTextDiv.innerHTML = sanitizeAndFormatContent(review.content);
+                        
+                        const readMoreContainer = document.createElement('div');
+                        readMoreContainer.className = 'readMoreContainer';
+                        const readMoreBtn = document.createElement('button');
+                        readMoreBtn.id = `review-toggle-${reviewId}`;
+                        readMoreBtn.className = 'readMoreButton';
+                        readMoreBtn.style.display = 'none';
+                        readMoreBtn.textContent = 'Read more...';
+                        readMoreContainer.appendChild(readMoreBtn);
+                        
+                        reviewContentContainer.appendChild(reviewTextDiv);
+                        reviewContentContainer.appendChild(readMoreContainer);
+                        
+                        reviewContainer.appendChild(reviewDetails);
+                        reviewContainer.appendChild(reviewContentContainer);
+                        
+                        reviewsContainerDiv.appendChild(reviewContainer);
                     });
                     
-                    reviewsHtml += '</div>';
-                    reviewerDiv.innerHTML = `<style>${cssStyles}</style>` + reviewsHtml;
+                    // Clear and rebuild the container safely
+                    reviewerDiv.innerHTML = '';
+                    const styleElement = document.createElement('style');
+                    styleElement.textContent = cssStyles;
+                    reviewerDiv.appendChild(styleElement);
+                    
+                    const sourceDiv = document.createElement('div');
+                    sourceDiv.className = 'reviewsSource';
+                    sourceDiv.innerHTML = `
+                        <h2 class="sectionTitle sectionTitle-cards padded-right">
+                            IMDb Reviews
+                        </h2>
+                        <div class="reviewerScrollButtons">
+                            <button type="button" class="reviewerScrollLeft paper-icon-button-light" title="Previous">
+                                <span class="material-icons chevron_left" aria-hidden="true"></span>
+                            </button>
+                            <button type="button" class="reviewerScrollRight paper-icon-button-light" title="Next">
+                                <span class="material-icons chevron_right" aria-hidden="true"></span>
+                            </button>
+                        </div>
+                    `;
+                    
+                    reviewsContainerDiv.className = 'reviewsContainer';
+                    
+                    reviewerDiv.appendChild(sourceDiv);
+                    reviewerDiv.appendChild(reviewsContainerDiv);
                     
                     setTimeout(() => {
                         initializeReviewScrollButtons(reviewerDiv);
@@ -503,24 +625,42 @@
                                 toggleBtn.addEventListener('click', () => {
                                     const modal = document.createElement('div');
                                     modal.className = 'reviewModalOverlay';
-                                    const escapedAuthorModal = escapeHtml(review.author);
-                                    const escapedRatingModal = escapeHtml(review.rating);
-                                    const escapedContentModal = sanitizeAndFormatContent(review.content);
                                     
-                                    modal.innerHTML = `
-                                        <div class="reviewModalContent">
-                                            <div class="reviewModalHeader">
-                                                <div>
-                                                    <strong style="font-size: 1.1em;">${escapedAuthorModal}</strong>
-                                                    ${review.rating ? `<span style="margin-left: 4px;">${escapedRatingModal}/10</span>` : ''}
-                                                </div>
-                                                <button class="reviewModalClose" title="Close">&times;</button>
-                                            </div>
-                                            <div class="reviewModalBody">
-                                                ${escapedContentModal}
-                                            </div>
-                                        </div>
-                                    `;
+                                    // Build modal content safely
+                                    const modalContent = document.createElement('div');
+                                    modalContent.className = 'reviewModalContent';
+                                    
+                                    const modalHeader = document.createElement('div');
+                                    modalHeader.className = 'reviewModalHeader';
+                                    
+                                    const headerLeft = document.createElement('div');
+                                    const authorStrong = document.createElement('strong');
+                                    authorStrong.style.fontSize = '1.1em';
+                                    authorStrong.textContent = review.author || 'Anonymous';
+                                    headerLeft.appendChild(authorStrong);
+                                    
+                                    if (review.rating) {
+                                        const ratingSpan = document.createElement('span');
+                                        ratingSpan.style.marginLeft = '4px';
+                                        ratingSpan.textContent = `${review.rating}/10`;
+                                        headerLeft.appendChild(ratingSpan);
+                                    }
+                                    
+                                    const closeBtn = document.createElement('button');
+                                    closeBtn.className = 'reviewModalClose';
+                                    closeBtn.title = 'Close';
+                                    closeBtn.textContent = '×';
+                                    
+                                    modalHeader.appendChild(headerLeft);
+                                    modalHeader.appendChild(closeBtn);
+                                    
+                                    const modalBody = document.createElement('div');
+                                    modalBody.className = 'reviewModalBody';
+                                    modalBody.innerHTML = sanitizeAndFormatContent(review.content);
+                                    
+                                    modalContent.appendChild(modalHeader);
+                                    modalContent.appendChild(modalBody);
+                                    modal.appendChild(modalContent);
                                     
                                     document.body.appendChild(modal);
 
@@ -535,7 +675,7 @@
                                         if (e.target === modal) closeModal();
                                     });
                                     
-                                    modal.querySelector('.reviewModalClose').addEventListener('click', closeModal);
+                                    closeBtn.addEventListener('click', closeModal);
 
                                     const escapeHandler = (e) => {
                                         if (e.key === 'Escape') {
@@ -573,17 +713,14 @@
         }
         
         const albumData = await getMovieData(itemId);
-        console.log('[Reviewer] Album data:', albumData);
         
         // Only show total streams for MusicAlbum
         if (!albumData || albumData.Type !== 'MusicAlbum') {
-            console.log('[Reviewer] Item type not MusicAlbum:', albumData?.Type);
             return;
         }
         
         // Check if already processing this album
         if (processingAlbums.has(itemId)) {
-            console.log('[Reviewer] Already processing album:', itemId);
             return;
         }
         
@@ -593,7 +730,6 @@
             // If any of them match the current item ID, we're already done
             for (const group of existingGroups) {
                 if (group.dataset.itemId === itemId) {
-                    console.log('[Reviewer] Total streams already displayed for this album');
                     return;
                 }
                 // Remove any old ones from different albums
@@ -619,54 +755,33 @@
             });
             
             if (!result || !result.Items || result.Items.length === 0) {
-                console.log('[Reviewer] No tracks found in album');
                 return;
             }
-            
-            console.log(`[Reviewer] Found ${result.Items.length} tracks in album`);
             
             // Find target container - look for the genres group and insert after it
             const genresGroup = document.querySelector('.detailsGroupItem.genresGroup');
             if (!genresGroup) {
-                console.log('[Reviewer] Genres group not found');
                 return;
             }
             
             const parentContainer = genresGroup.parentElement;
             if (!parentContainer) {
-                console.log('[Reviewer] Parent container not found');
                 return;
             }
             
-            // Create placeholder element
-            const totalStreamsGroup = document.createElement('div');
-            totalStreamsGroup.className = 'detailsGroupItem totalStreamsGroup';
-            totalStreamsGroup.dataset.itemId = itemId;
-            totalStreamsGroup.innerHTML = `
-                <div class="totalStreamsLabel label">Total Streams</div>
-                <div class="totalStreams content">
-                    <span style="font-size: 0.9em;">Calculating...</span>
-                </div>
-            `;
-            
-            // Insert before genres group
-            parentContainer.insertBefore(totalStreamsGroup, genresGroup);
-            
+            // Ensure a total group exists (helper will insert before genresGroup)
+            const totalStreamsGroup = getOrCreateTotalGroup(itemId);
+            if (!totalStreamsGroup) {
+                return;
+            }
+
             // Check if we have cached total for this album
             if (albumTotalCache.has(itemId)) {
-                console.log('[Reviewer] Using cached album total');
                 const cachedTotal = albumTotalCache.get(itemId);
-                const totalStreamsContent = totalStreamsGroup.querySelector('.totalStreams.content');
-                if (totalStreamsContent) {
-                    if (cachedTotal.successCount > 0) {
-                        const formattedTotal = cachedTotal.totalStreams.toLocaleString();
-                        totalStreamsContent.innerHTML = `
-                            <span style="font-weight: 500; white-space: nowrap;">${escapeHtml(formattedTotal)}</span>
-                        `;
-                    } else {
-                        totalStreamsContent.innerHTML = `<span style="white-space: nowrap;">No stream data available</span>`;
-                    }
-                }
+                const formattedTotal = cachedTotal.successCount > 0
+                    ? `<span style="font-weight: 500; white-space: nowrap;">${escapeHtml(cachedTotal.totalStreams.toLocaleString())}</span>`
+                    : `<span style="white-space: nowrap;">No stream data available</span>`;
+                await updateTotalGroupWithRetry(itemId, formattedTotal);
                 return;
             }
             
@@ -708,24 +823,13 @@
                 }
             }
             
-            console.log(`[Reviewer] Total streams calculated: ${totalStreams} from ${successCount} tracks`);
-            
             // Cache the album total
             albumTotalCache.set(itemId, { totalStreams, successCount });
             
             // Update the display
-            const totalStreamsContent = totalStreamsGroup.querySelector('.totalStreams.content');
-            if (totalStreamsContent) {
-                if (successCount > 0) {
-                    // Format number with commas
-                    const formattedTotal = totalStreams.toLocaleString();
-                    totalStreamsContent.innerHTML = `
-                        <span style="font-weight: 500; white-space: nowrap;">${escapeHtml(formattedTotal)}</span>
-                    `;
-                } else {
-                    totalStreamsContent.innerHTML = `<span style="white-space: nowrap;">No stream data available</span>`;
-                }
-            }
+            const formattedTotal = successCount > 0 ? `<span style="font-weight: 500; white-space: nowrap;">${escapeHtml(totalStreams.toLocaleString())}</span>` : `<span style="white-space: nowrap;">No stream data available</span>`;
+            // Update UI with retry to handle Jellyfin re-renders
+            await updateTotalGroupWithRetry(itemId, formattedTotal);
             
         } catch (error) {
             console.error('[Reviewer] Error calculating total streams:', error);
@@ -748,8 +852,6 @@
         if (!artistData || artistData.Type !== 'MusicArtist') {
             return;
         }
-
-        console.log('[Reviewer] injectArtistTotalStreams: Artist data:', artistData);
 
         // Avoid duplicate processing
         if (processingArtists.has(itemId)) return;
@@ -777,7 +879,6 @@
             });
 
             if (!albumsResult || !albumsResult.Items || albumsResult.Items.length === 0) {
-                console.log('[Reviewer] No albums found for artist', itemId);
                 return;
             }
 
@@ -841,8 +942,6 @@
                     targetContainer.insertBefore(totalGroup, insertPosition);
                 } else if (targetContainer) {
                     targetContainer.appendChild(totalGroup);
-                } else {
-                    console.log('[Reviewer] Failed to find insertion point for artist total streams');
                 }
             }
 
@@ -857,7 +956,6 @@
                 if (albumTotalCache.has(album.Id)) {
                     const cached = albumTotalCache.get(album.Id);
                     if (cached && cached.successCount > 0) {
-                        console.log('[Reviewer] Using cached album total for', album.Name, album.Id, cached.totalStreams);
                         return cached.totalStreams;
                     }
                     return 0;
@@ -919,8 +1017,6 @@
                 }
             }
 
-            console.log('[Reviewer] Artist total streams calculated:', artistTotal, 'from', artistSuccessCount, 'albums');
-
             // Ensure the injected element is still in the DOM (Jellyfin may re-render)
             if (!totalGroup || !document.body.contains(totalGroup)) {
                 const existing = document.querySelector(`.detailsGroupItem.totalStreamsGroup[data-item-id="${itemId}"]`);
@@ -937,15 +1033,12 @@
                 }
             }
 
-            // Update UI
-            const totalContent = totalGroup.querySelector('.totalStreams.content');
-            if (totalContent) {
-                if (artistTotal > 0) {
-                    totalContent.innerHTML = `<span style="font-weight: 500; white-space: nowrap;">${escapeHtml(artistTotal.toLocaleString())}</span>`;
-                } else {
-                    totalContent.innerHTML = `<span style="white-space: nowrap;">No stream data available</span>`;
-                }
-            }
+            const formattedTotal = artistTotal > 0
+                ? `<span style="font-weight: 500; white-space: nowrap;">${escapeHtml(artistTotal.toLocaleString())}</span>`
+                : `<span style="white-space: nowrap;">No stream data available</span>`;
+
+            // Use retry helper to inject/update the total group reliably
+            await updateTotalGroupWithRetry(itemId, formattedTotal);
 
         } catch (error) {
             console.error('[Reviewer] Error calculating artist total streams:', error);
@@ -978,11 +1071,9 @@
         }
         
         const musicData = await getMovieData(itemId);
-        console.log('[Reviewer] Music data:', musicData);
         
         // Only show stream counts for Audio items (individual tracks), not albums or artists
         if (!musicData || musicData.Type !== 'Audio') {
-            console.log('[Reviewer] Item type not Audio track:', musicData?.Type);
             return;
         }
         
@@ -993,11 +1084,8 @@
         const artistName = musicData.AlbumArtist || musicData.Artists?.[0] || null;
         
         if (!spotifyId && (!trackName || !artistName)) {
-            console.log('[Reviewer] No Spotify ID and insufficient track info');
             return;
         }
-        
-        console.log('[Reviewer] Track info - Album ID:', albumId, 'Track ID:', itemId, 'Spotify ID:', spotifyId, 'Name:', trackName, 'Artist:', artistName);
         
         // Find the target container
         const detailPrimary = document.querySelector('.detailPagePrimaryContent');
@@ -1024,8 +1112,6 @@
             
             const streamData = await fetchStreamCount(albumId, itemId, spotifyId, trackName, artistName);
             if (streamData) {
-                console.log('[Reviewer] Successfully loaded stream data:', streamData);
-                
                 let streamHtml = `
                     <div style="background: rgba(0,0,0,0.3); border-radius: 8px; padding: 20px; margin-bottom: 20px;">
                         <h2 class="sectionTitle sectionTitle-cards" style="margin-bottom: 15px;">
