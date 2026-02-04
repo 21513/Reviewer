@@ -140,8 +140,9 @@
             
             if (streamData) {
                 const parts = streamData.split('|||');
+                const streamCount = parts[0] && parts[0].trim() ? parts[0].trim() : 'N/A';
                 const result = {
-                    streamCount: parts[0] || '0',
+                    streamCount: streamCount,
                     trackName: parts[1] || '',
                     artistName: parts[2] || '',
                     releaseDate: parts[3] || ''
@@ -282,7 +283,9 @@
                 // Create stream count element
                 const streamCountDiv = document.createElement('div');
                 streamCountDiv.className = 'reviewerStreamCount';
-                streamCountDiv.title = `${streamData.streamCount} Spotify streams`;
+                if (streamData.streamCount && streamData.streamCount !== 'N/A') {
+                    streamCountDiv.title = `${streamData.streamCount} Spotify streams`;
+                }
                 streamCountDiv.textContent = streamData.streamCount;
                 
                 // Check screen size to determine placement
@@ -801,7 +804,7 @@
                 
                 const streamData = await fetchStreamCount(itemId, track.Id, spotifyId, trackName, artistName);
                 
-                if (streamData && streamData.streamCount) {
+                if (streamData && streamData.streamCount && streamData.streamCount !== 'N/A') {
                     // Remove commas and convert to number
                     const count = parseInt(streamData.streamCount.replace(/,/g, ''), 10);
                     if (!isNaN(count)) {
@@ -984,7 +987,7 @@
                         if (!spotifyId && (!trackName || !artistName)) return null;
 
                         const streamData = await fetchStreamCount(album.Id, track.Id, spotifyId, trackName, artistName);
-                        if (streamData && streamData.streamCount) {
+                        if (streamData && streamData.streamCount && streamData.streamCount !== 'N/A') {
                             const count = parseInt(streamData.streamCount.replace(/,/g, ''), 10);
                             if (!isNaN(count)) return count;
                         }

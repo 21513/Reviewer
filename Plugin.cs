@@ -33,6 +33,8 @@ public class Plugin : BasePlugin<PluginConfiguration>
     {
         _logger = logger;
         
+        _logger.LogInformation("[Reviewer] Plugin DataFolderPath: {Path}", DataFolderPath);
+        
         // Initialize caches
         _reviewCache = new ReviewCache(DataFolderPath);
         _streamCountCache = new StreamCountCache(DataFolderPath);
